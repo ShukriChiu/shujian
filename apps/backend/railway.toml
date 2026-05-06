@@ -1,0 +1,5 @@
+[deploy]
+startCommand = "./shujian-backend"
+healthcheckPath = "/healthz"
+healthcheckTimeout = 30
+restartPolicyType = "on_failure"

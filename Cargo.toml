@@ -1,3 +1,14 @@
 [workspace]
-members = ["apps/agent"]
+members = ["apps/agent", "apps/backend"]
 resolver = "3"
+
+# Shared release profile across the workspace. The agent prioritizes binary
+# size (opt-level "z") for distribution; the backend optimises for speed
+# (opt-level 3) since it lives on a server. Pick the speed profile by
+# default; the agent overrides via its own --profile if it ever needs a
+# distinct one.
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = true
