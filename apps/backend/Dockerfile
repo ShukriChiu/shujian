@@ -2,7 +2,7 @@
 
 # Build stage — pull cargo deps first so iterative builds skip the heavy
 # crate compilation when only src/ changes.
-FROM rust:1.83-slim-bookworm AS builder
+FROM rust:1-slim-bookworm AS builder
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
