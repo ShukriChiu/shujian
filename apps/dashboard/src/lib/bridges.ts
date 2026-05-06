@@ -40,6 +40,24 @@ const DEFAULT_LOCAL: Bridge = Object.freeze({
   sessionToken: '',
 }) as Bridge
 
+// Public cloud bridge (Railway). Seeded into the registry by default so any
+// browser that lands on the production dashboard can drive Cursor cloud
+// agents immediately after pasting their CURSOR_API_KEY into the bridge.
+// Local dev still gets DEFAULT_LOCAL as well — both coexist.
+const DEFAULT_CLOUD: Bridge = Object.freeze({
+  id: 'cloud',
+  name: 'cloud',
+  endpoint: 'https://bridge-production-aea2.up.railway.app',
+  apiKey: '',
+  sessionToken: '',
+}) as Bridge
+
+function isLocalHost(): boolean {
+  if (typeof window === 'undefined') return true
+  const h = window.location.hostname
+  return h === 'localhost' || h === '127.0.0.1' || h === '::1'
+}
+
 interface State {
   bridges: Bridge[]
   activeId: string
@@ -80,8 +98,16 @@ function read(): State {
         bridges = [{ ...DEFAULT_LOCAL }]
       }
     }
-    let activeId = window.localStorage.getItem(ACTIVE_KEY) ?? bridges[0]!.id
-    if (!bridges.some((b) => b.id === activeId)) activeId = bridges[0]!.id
+    // Seed the cloud bridge if it's missing. Keeps user-edited apiKey/etc
+    // intact for cloud entries already present.
+    if (!bridges.some((b) => b.id === DEFAULT_CLOUD.id)) {
+      bridges = [...bridges, { ...DEFAULT_CLOUD }]
+    }
+    // On the production hosted dashboard the local bridge endpoint (/cursor)
+    // doesn't resolve, so prefer the cloud bridge as the default active one.
+    const fallbackActive = isLocalHost() ? bridges[0]!.id : DEFAULT_CLOUD.id
+    let activeId = window.localStorage.getItem(ACTIVE_KEY) ?? fallbackActive
+    if (!bridges.some((b) => b.id === activeId)) activeId = fallbackActive
     cache = { bridges, activeId }
   } catch {
     cache = { bridges: [{ ...DEFAULT_LOCAL }], activeId: DEFAULT_LOCAL.id }
