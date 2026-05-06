@@ -1,29 +1,23 @@
 # syntax=docker/dockerfile:1.7
 
-# Build stage — pull cargo deps first so iterative builds skip the heavy
-# crate compilation when only src/ changes.
-FROM rust:1-slim-bookworm AS builder
+FROM rust:1.94-slim-bookworm AS builder
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         pkg-config libssl-dev ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Pre-fetch deps (cached layer)
+# Build the real binary in one shot. The dummy-source caching trick we
+# tried earlier left a placeholder binary at target/release/shujian-backend
+# that didn't get overwritten by the real build, so the runtime stage
+# happily executed it and exited with "placeholder". Skip the trick — a
+# clean cold build is ~3 min and reliable.
 COPY Cargo.toml ./
-RUN mkdir -p src && echo 'fn main() { println!("placeholder"); }' > src/main.rs && \
-    cargo build --release --locked 2>/dev/null || cargo build --release && \
-    rm -rf src
-
-# Real build
 COPY src ./src
 COPY migrations ./migrations
 RUN cargo build --release && \
-    cp target/release/shujian-backend /shujian-backend && \
-    rm -rf target
+    cp target/release/shujian-backend /shujian-backend
 
-# Runtime stage — slim debian + ca-certs for outbound TLS, plus a non-root
-# user so the binary doesn't run as root in production.
 FROM debian:bookworm-slim AS runtime
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates curl \
