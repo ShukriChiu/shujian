@@ -86,6 +86,20 @@ app.get('/models', async (c) => {
   }
 })
 
+// GitHub repos the API key's owner has connected to Cursor (via the
+// Background Agents GitHub App). Used by the dashboard to populate the
+// "Repo URL" picker when creating a cloud agent.
+app.get('/repos', async (c) => {
+  const apiKey = getApiKey(c)
+  if (!apiKey) return c.json({ error: 'CURSOR_API_KEY missing' }, 401)
+  try {
+    const list = await Cursor.repositories.list({ apiKey })
+    return c.json({ items: list })
+  } catch (err) {
+    return c.json({ error: String(err) }, 500)
+  }
+})
+
 // — slash-command skill discovery —
 // Mirrors what `local.settingSources` will load behind the scenes, so the
 // dashboard can render the same `/foo` autocomplete UX as the Cursor IDE.

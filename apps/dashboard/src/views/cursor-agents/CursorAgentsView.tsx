@@ -29,6 +29,12 @@ export function CursorAgentsView() {
   const qc = useQueryClient()
   const me = useQuery({ queryKey: ['cursor', 'me'], queryFn: cursorApi.me, retry: 0 })
   const models = useQuery({ queryKey: ['cursor', 'models'], queryFn: cursorApi.models, retry: 0 })
+  const repos = useQuery({
+    queryKey: ['cursor', 'repos'],
+    queryFn: cursorApi.repos,
+    retry: 0,
+    staleTime: 60_000,
+  })
   const list = useQuery({
     queryKey: ['cursor', 'list'],
     queryFn: cursorApi.list,
@@ -381,13 +387,30 @@ bun run dev`}</pre>
             </>
           ) : (
             <>
-              <Field label="Repo URL">
+              <Field
+                label="Repo URL"
+                hint={
+                  repos.isLoading
+                    ? '正在从 Cursor 加载已授权 repo…'
+                    : repos.error
+                      ? '加载 repo 列表失败，可手动粘贴 URL'
+                      : repos.data?.items.length
+                        ? `${repos.data.items.length} 个已授权 repo（输入 / 下拉选择）`
+                        : '没有已授权 repo —— 在 Cursor 安装 Background Agents GitHub App'
+                }
+              >
                 <input
                   className="input font-mono"
+                  list="cursor-repos"
                   value={repoUrl}
                   onChange={(e) => setRepoUrl(e.target.value)}
                   placeholder="https://github.com/your-org/your-repo"
                 />
+                <datalist id="cursor-repos">
+                  {repos.data?.items.map((r) => (
+                    <option key={r.url} value={r.url} />
+                  ))}
+                </datalist>
               </Field>
               <label className="flex items-center gap-2 text-xs text-ink-700">
                 <input
@@ -604,13 +627,22 @@ bun run dev`}</pre>
   )
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  hint,
+  children,
+}: {
+  label: string
+  hint?: React.ReactNode
+  children: React.ReactNode
+}) {
   return (
     <div>
       <label className="mb-1 block text-[11px] font-medium uppercase tracking-wider text-ink-500">
         {label}
       </label>
       {children}
+      {hint && <div className="mt-1 text-[10px] leading-snug text-ink-500">{hint}</div>}
     </div>
   )
 }

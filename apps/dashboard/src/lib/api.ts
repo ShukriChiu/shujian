@@ -218,6 +218,7 @@ export const cursorApi = {
   health: () => request<CursorHealth>(`${cursorBase()}/health`),
   me: () => request<CursorMe>(`${cursorBase()}/me`),
   models: () => request<CursorModel[]>(`${cursorBase()}/models`),
+  repos: () => request<{ items: Array<{ url: string }> }>(`${cursorBase()}/repos`),
   list: () => request<{ items: CursorAgent[] }>(`${cursorBase()}/agents`),
   skills: (cwd: string, layers: Array<'project' | 'user'> = ['project', 'user']) =>
     request<{ items: CursorSkill[]; cwd: string }>(
