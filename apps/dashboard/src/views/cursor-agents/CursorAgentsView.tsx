@@ -1,8 +1,19 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Cloud, Cpu, Loader2, MessageSquarePlus, Plus, Send, Square, Trash2 } from 'lucide-react'
+import {
+  Cloud,
+  Cpu,
+  KeyRound,
+  Loader2,
+  MessageSquarePlus,
+  Plus,
+  Send,
+  Square,
+  Trash2,
+} from 'lucide-react'
 import { buildCursorStreamUrl, cursorApi, type CursorAgent, type CursorModel } from '@/lib/api'
 import { EmptyState, ErrorBanner, Panel } from '@/components/Panel'
+import { useVaults } from '@/lib/useVaults'
 import { cn } from '@/lib/utils'
 import { Conversation } from './ConversationView'
 import { applyEvent, newAssistantTurn, newUserTurn, type Turn } from './turns'
@@ -49,6 +60,13 @@ export function CursorAgentsView() {
   const [repoUrl, setRepoUrl] = useState<string>('')
   const [autoCreatePR, setAutoCreatePR] = useState(false)
   const [name, setName] = useState<string>('')
+  const [vaultId, setVaultId] = useState<string>('')
+
+  const vaults = useVaults()
+  const selectedVault = useMemo(
+    () => (vaultId ? vaults.find((v) => v.id === vaultId) : undefined),
+    [vaults, vaultId],
+  )
   // Setting layers — controls whether the SDK loads .cursor/skills/, .cursor/mcp.json,
   // .cursor/agents/*.md, .cursor/hooks.json from project / user / plugins.
   const [loadProject, setLoadProject] = useState(true)
@@ -69,15 +87,17 @@ export function CursorAgentsView() {
   const [slashQuery, setSlashQuery] = useState('')
   const [slashHighlight, setSlashHighlight] = useState(0)
 
-  // skills are tied to the agent's cwd. We don't know that per-agent, so use
-  // the form's cwd as the proxy (matches what was used when the agent was created).
+  // Local skills picker is only meaningful for local agents. Cloud agents
+  // load .cursor/skills/ from the repo VM-side at agent boot, not from
+  // the host running this bridge — so we just gate the query off entirely.
   const skillsQuery = useQuery({
     queryKey: ['cursor', 'skills', cwd],
     queryFn: () => cursorApi.skills(cwd, ['project', 'user']),
     staleTime: 60_000,
     retry: 0,
+    enabled: runtime === 'local',
   })
-  const skills = skillsQuery.data?.items ?? []
+  const skills = runtime === 'local' ? (skillsQuery.data?.items ?? []) : []
 
   const turns = selected ? (conversations[selected] ?? []) : []
 
@@ -104,6 +124,10 @@ export function CursorAgentsView() {
         autoCreatePR: runtime === 'cloud' ? autoCreatePR : undefined,
         name: name.trim() || undefined,
         settingSources: runtime === 'local' ? settingSources : undefined,
+        envVars:
+          runtime === 'cloud' && selectedVault && Object.keys(selectedVault.envs).length
+            ? selectedVault.envs
+            : undefined,
       })
     },
     onSuccess: (created) => {
@@ -412,6 +436,32 @@ bun run dev`}</pre>
                   ))}
                 </datalist>
               </Field>
+              <Field
+                label="Vault (envVars)"
+                hint={
+                  vaults.length === 0
+                    ? '还没有 vault — 顶栏点 Vaults 创建一个，可注入 DATABASE_URL 等到 cloud agent'
+                    : selectedVault
+                      ? `${Object.keys(selectedVault.envs).length} 个 env 会注入云端 process.env，agent 销毁时一起清理`
+                      : '可选：注入数据库连接、API key 等到 cloud agent shell'
+                }
+              >
+                <div className="relative">
+                  <KeyRound className="pointer-events-none absolute left-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-ink-400" />
+                  <select
+                    className="input pl-7 pr-7"
+                    value={vaultId}
+                    onChange={(e) => setVaultId(e.target.value)}
+                  >
+                    <option value="">— 不注入任何 env —</option>
+                    {vaults.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.name} · {Object.keys(v.envs).length} keys
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </Field>
               <label className="flex items-center gap-2 text-xs text-ink-700">
                 <input
                   type="checkbox"
@@ -420,6 +470,33 @@ bun run dev`}</pre>
                 />
                 结束自动开 PR
               </label>
+
+              <div className="rounded-md border border-ink-200 bg-ink-50/40 p-2.5">
+                <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-ink-600">
+                  Cloud Skills
+                </div>
+                <div className="space-y-1 text-[11px] leading-snug text-ink-600">
+                  <div>
+                    · 仓库自带 — 在 repo 根 <code className="font-mono">.cursor/skills/</code> commit
+                    SKILL.md，agent 启动自动加载
+                  </div>
+                  <div>
+                    · 团队级 — 在{' '}
+                    <a
+                      href="https://cursor.com/dashboard"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-violet-700 underline-offset-2 hover:underline"
+                    >
+                      cursor.com 团队设置
+                    </a>{' '}
+                    配置（所有 cloud agent 共享）
+                  </div>
+                  <div className="text-ink-400">
+                    · 你本机 ~/.cursor/skills-cursor/ <strong>不会</strong>同步到 cloud
+                  </div>
+                </div>
+              </div>
             </>
           )}
 

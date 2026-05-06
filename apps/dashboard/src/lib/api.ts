@@ -234,6 +234,7 @@ export const cursorApi = {
     autoCreatePR?: boolean
     name?: string
     settingSources?: Array<'project' | 'user' | 'team' | 'mdm' | 'plugins' | 'all'>
+    envVars?: Record<string, string>
   }) =>
     request<CursorAgent & { runtime: string }>(`${cursorBase()}/agents`, {
       method: 'POST',

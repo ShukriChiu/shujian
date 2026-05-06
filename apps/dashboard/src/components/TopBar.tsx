@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { CircleDot, Plug, Settings2 } from 'lucide-react'
+import { CircleDot, KeyRound, Plug, Settings2 } from 'lucide-react'
 import { agentApi } from '@/lib/api'
+import { useVaults } from '@/lib/useVaults'
 import { cn } from '@/lib/utils'
 import { BillingPill } from './BillingPill'
 import { BridgePill } from './BridgePill'
 import { BridgesDialog } from './BridgesDialog'
 import { CredentialsDialog } from './CredentialsDialog'
+import { VaultsDialog } from './VaultsDialog'
 
 function StatusDot({ ok, label, sub }: { ok: boolean; label: string; sub?: string }) {
   return (
@@ -28,6 +30,8 @@ function StatusDot({ ok, label, sub }: { ok: boolean; label: string; sub?: strin
 export function TopBar() {
   const [credsOpen, setCredsOpen] = useState(false)
   const [bridgesOpen, setBridgesOpen] = useState(false)
+  const [vaultsOpen, setVaultsOpen] = useState(false)
+  const vaults = useVaults()
   const health = useQuery({
     queryKey: ['agent', 'health'],
     queryFn: agentApi.health,
@@ -59,6 +63,17 @@ export function TopBar() {
           <BridgePill onOpenManager={() => setBridgesOpen(true)} />
           <BillingPill onOpenCredentials={() => setCredsOpen(true)} />
           <button
+            onClick={() => setVaultsOpen(true)}
+            className="flex h-7 items-center gap-1.5 rounded-md border border-ink-200 bg-white px-2 text-[11px] transition hover:border-violet-300 hover:bg-violet-50/50"
+            title="env 凭证束（注入 cloud agent 的 envVars）"
+          >
+            <KeyRound className="h-3 w-3 text-violet-600" />
+            <span className="font-medium">Vaults</span>
+            <span className="rounded bg-ink-100 px-1 py-px font-mono text-[10px] text-ink-700">
+              {vaults.length}
+            </span>
+          </button>
+          <button
             className="btn btn-ghost h-7 px-2 text-[11px]"
             onClick={() => setCredsOpen(true)}
             title="当前 bridge 凭证"
@@ -77,6 +92,7 @@ export function TopBar() {
       </header>
       <CredentialsDialog open={credsOpen} onClose={() => setCredsOpen(false)} />
       <BridgesDialog open={bridgesOpen} onClose={() => setBridgesOpen(false)} />
+      <VaultsDialog open={vaultsOpen} onClose={() => setVaultsOpen(false)} />
     </>
   )
 }

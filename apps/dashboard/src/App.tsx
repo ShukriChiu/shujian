@@ -1,20 +1,18 @@
 import { useState } from 'react'
-import { Activity, Bot, Cloud, Settings, Sparkles } from 'lucide-react'
+import { Activity, Bot, Settings, Sparkles } from 'lucide-react'
 import { cn } from './lib/utils'
 import { OverviewView } from './views/overview/OverviewView'
 import { LocalAgentsView } from './views/local-agents/LocalAgentsView'
 import { CursorAgentsView } from './views/cursor-agents/CursorAgentsView'
-import { CloudFanoutView } from './views/cloud-fanout/CloudFanoutView'
 import { SettingsView } from './views/settings/SettingsView'
 import { TopBar } from './components/TopBar'
 
-type Tab = 'overview' | 'local' | 'cursor' | 'fanout' | 'settings'
+type Tab = 'overview' | 'local' | 'cursor' | 'settings'
 
 const TABS: Array<{ id: Tab; label: string; icon: React.ComponentType<{ className?: string }> }> = [
   { id: 'overview', label: '总览', icon: Activity },
   { id: 'local', label: '本地 Agents', icon: Bot },
   { id: 'cursor', label: 'Cursor Agents', icon: Sparkles },
-  { id: 'fanout', label: 'Cloud Fan-out', icon: Cloud },
   { id: 'settings', label: '设置', icon: Settings },
 ]
 
@@ -81,7 +79,6 @@ export function App() {
             {tab === 'overview' && <OverviewView />}
             {tab === 'local' && <LocalAgentsView />}
             {tab === 'cursor' && <CursorAgentsView />}
-            {tab === 'fanout' && <CloudFanoutView />}
             {tab === 'settings' && <SettingsView />}
           </div>
         </main>

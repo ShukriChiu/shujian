@@ -464,6 +464,13 @@ app.post('/agents', async (c) => {
     name?: string
     /** Ambient Cursor settings layers to load (skills / MCP / sub-agents / hooks). */
     settingSources?: Array<'project' | 'user' | 'team' | 'mdm' | 'plugins' | 'all'>
+    /**
+     * Cloud-only: per-session env vars injected into the cloud agent's shell.
+     * Encrypted at rest by Cursor; deleted with the agent. Use to ship
+     * caller-minted credentials (DATABASE_URL, REDIS_URL, etc.) so the
+     * checked-out repo's code can read them without committing secrets.
+     */
+    envVars?: Record<string, string>
   }
   let body: CreateBody = {}
   try {
@@ -476,6 +483,16 @@ app.post('/agents', async (c) => {
     let agent: SDKAgent
     if (runtime === 'cloud') {
       if (!body.repoUrl) return c.json({ error: 'cloud runtime 需要 repoUrl' }, 400)
+      // Light validation: envVars must be a flat string→string map. We
+      // strip empty keys/values to avoid Cursor rejecting the call.
+      const envVars =
+        body.envVars && typeof body.envVars === 'object'
+          ? Object.fromEntries(
+              Object.entries(body.envVars).filter(
+                ([k, v]) => typeof k === 'string' && k && typeof v === 'string',
+              ),
+            )
+          : undefined
       agent = await Agent.create({
         apiKey,
         name: body.name,
@@ -483,6 +500,7 @@ app.post('/agents', async (c) => {
         cloud: {
           repos: [{ url: body.repoUrl, startingRef: body.startingRef }],
           autoCreatePR: body.autoCreatePR ?? false,
+          envVars: envVars && Object.keys(envVars).length ? envVars : undefined,
         },
       })
     } else {
