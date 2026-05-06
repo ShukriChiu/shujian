@@ -7,14 +7,14 @@ on:
       - "apps/dashboard/**"
       - "packages/shared-types/**"
       - "package.json"
-      - "bun.lockb"
+      - "bun.lock"
       - ".github/workflows/dashboard.yml"
   pull_request:
     paths:
       - "apps/dashboard/**"
       - "packages/shared-types/**"
       - "package.json"
-      - "bun.lockb"
+      - "bun.lock"
       - ".github/workflows/dashboard.yml"
   workflow_dispatch:
 

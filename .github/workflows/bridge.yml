@@ -7,14 +7,14 @@ on:
       - "apps/bridge/**"
       - "packages/shared-types/**"
       - "package.json"
-      - "bun.lockb"
+      - "bun.lock"
       - ".github/workflows/bridge.yml"
   pull_request:
     paths:
       - "apps/bridge/**"
       - "packages/shared-types/**"
       - "package.json"
-      - "bun.lockb"
+      - "bun.lock"
       - ".github/workflows/bridge.yml"
   workflow_dispatch:
 

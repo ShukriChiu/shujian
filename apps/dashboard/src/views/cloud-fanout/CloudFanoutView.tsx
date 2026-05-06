@@ -310,7 +310,7 @@ export function CloudFanoutView() {
             </span>
           </>
         }
-        right={
+        actions={
           <div className="flex items-center gap-1">
             <button onClick={addSlot} disabled={running} className="btn btn-ghost h-7 text-[11px]">
               <Plus className="h-3 w-3" />
