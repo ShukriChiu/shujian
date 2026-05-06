@@ -1,0 +1,95 @@
+# ============================
+# 友联数字员工运行时配置
+# ============================
+
+# --- 默认 LLM（未指定 model_category 的 agent 使用此配置）---
+[llm]
+provider = "openai"
+base_url = "https://www.sophnet.com/api/open-apis/v1"
+model = "gpt-5.4:6LnMN9RhHic68GiwOtOcAc"
+api_key_env = "SOPHNET_API_KEY"
+max_rounds = 50
+
+# --- 模型类别路由 ---
+# 不同类型的任务使用不同的模型，agent 通过 model_category 指定
+
+[[model_categories]]
+name = "deep_analysis"
+provider = "openai"
+model = "gpt-5.4:6LnMN9RhHic68GiwOtOcAc"
+api_key_env = "SOPHNET_API_KEY"
+max_rounds = 100
+
+[[model_categories]]
+name = "quick_ops"
+provider = "openai"
+model = "gpt-5.4:6LnMN9RhHic68GiwOtOcAc"
+api_key_env = "SOPHNET_API_KEY"
+max_rounds = 20
+
+[[model_categories]]
+name = "erp_automation"
+provider = "openai"
+model = "gpt-5.4:6LnMN9RhHic68GiwOtOcAc"
+api_key_env = "SOPHNET_API_KEY"
+max_rounds = 50
+
+# --- 数字员工 ---
+
+[[agents]]
+name = "document_clerk"
+workspace = "./agents/document_clerk"
+description = "文档分类数字员工：识别证照类型、提取字段、缺口检测、到期预警"
+model_category = "quick_ops"
+
+[[agents]]
+name = "inventory_watcher"
+workspace = "./agents/inventory_watcher"
+description = "库存预警数字员工：缺货预警、滞销识别、补货建议、资金占用分析"
+model_category = "deep_analysis"
+
+[[agents]]
+name = "kingdee_operator"
+workspace = "./agents/kingdee_operator"
+description = "金蝶操作数字员工：商品建档、销售开单、数据核验"
+model_category = "erp_automation"
+tools = ["read_file", "write_file", "list_files", "http_fetch", "query_supabase", "batch"]
+
+[agents.discipline]
+enforce_todo = true
+max_continuation = 2
+accumulate_wisdom = true
+
+[[agents]]
+name = "data_analyst"
+workspace = "./agents/data_analyst"
+description = "数据分析数字员工：全渠道利润分析、渠道比价、客户洞察"
+model_category = "deep_analysis"
+tools = ["read_file", "write_file", "list_files", "query_supabase", "batch"]
+
+# --- 服务器 ---
+[server]
+bind = "0.0.0.0:8002"
+max_concurrent_tasks = 5
+
+# --- 外部服务 ---
+[supabase]
+
+[union_agent]
+base_url = "http://localhost:8001"
+
+# --- 触发器 ---
+
+[[triggers]]
+name = "daily_document_scan"
+type = "cron"
+expr = "0 9 * * *"
+reason = "每天早上9点扫描新入库的文档，进行自动分类和字段提取"
+agent = "document_clerk"
+
+[[triggers]]
+name = "daily_inventory_check"
+type = "cron"
+expr = "0 8 * * *"
+reason = "每天早上8点检查全渠道库存，生成缺货预警和补货建议"
+agent = "inventory_watcher"

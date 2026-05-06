@@ -1,0 +1,130 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply font-sans text-ink-800 antialiased;
+    background: radial-gradient(circle at 20% -10%, #ede9fe 0%, transparent 35%),
+      radial-gradient(circle at 110% 0%, #dbeafe 0%, transparent 30%), #f8fafc;
+  }
+
+  ::selection {
+    background-color: #ddd6fe;
+    color: #2e1065;
+  }
+}
+
+@layer components {
+  .bg-app {
+    @apply text-ink-900;
+  }
+
+  .panel {
+    @apply rounded-xl border border-ink-200/70 bg-white/90 shadow-[0_1px_2px_rgba(15,23,42,0.04),_0_8px_24px_-8px_rgba(15,23,42,0.06)] backdrop-blur;
+  }
+
+  .panel-header {
+    @apply flex items-center justify-between border-b border-ink-200/70 px-5 py-3;
+  }
+
+  .panel-title {
+    @apply text-sm font-semibold tracking-tight text-ink-900;
+  }
+
+  .panel-sub {
+    @apply text-xs text-ink-500;
+  }
+
+  .pill {
+    @apply inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide;
+  }
+
+  .pill-ok {
+    @apply border-emerald-200 bg-emerald-50 text-emerald-700;
+  }
+  .pill-warn {
+    @apply border-amber-200 bg-amber-50 text-amber-700;
+  }
+  .pill-bad {
+    @apply border-red-200 bg-red-50 text-red-700;
+  }
+  .pill-info {
+    @apply border-blue-200 bg-blue-50 text-blue-700;
+  }
+  .pill-muted {
+    @apply border-ink-200 bg-ink-50 text-ink-600;
+  }
+  .pill-accent {
+    @apply border-violet-200 bg-violet-50 text-violet-700;
+  }
+
+  .btn {
+    @apply inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-ink-300 bg-white px-3 text-xs font-medium text-ink-700 shadow-sm transition hover:border-ink-400 hover:bg-ink-50 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .btn-primary {
+    @apply border-violet-700 bg-violet-700 text-white hover:border-violet-800 hover:bg-violet-800;
+  }
+
+  .btn-ghost {
+    @apply border-transparent bg-transparent text-ink-500 shadow-none hover:bg-ink-100 hover:text-ink-800;
+  }
+
+  .input {
+    @apply h-8 w-full rounded-md border border-ink-300 bg-white px-2.5 text-xs text-ink-800 placeholder:text-ink-400 focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-200;
+  }
+
+  .textarea {
+    @apply w-full rounded-md border border-ink-300 bg-white px-3 py-2 text-xs text-ink-800 placeholder:text-ink-400 focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-200;
+  }
+
+  .select {
+    @apply h-8 w-full appearance-none rounded-md border border-ink-300 bg-white px-2 pr-7 text-xs text-ink-800 focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-200;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.5rem center;
+  }
+
+  .row {
+    @apply grid grid-cols-12 gap-3 border-b border-ink-100 px-5 py-3 text-xs;
+  }
+
+  .row-head {
+    @apply text-[10px] font-semibold uppercase tracking-wider text-ink-500;
+  }
+
+  .scroll-thin {
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
+  }
+}
+
+/* — shiki output — keep its own theme colors but match our spacing/typography */
+.shiki-container .shiki {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  background: transparent !important;
+  font-size: 12px;
+  line-height: 1.55;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+.shiki-container .shiki code {
+  background: transparent;
+  padding: 0;
+  font-family: inherit;
+}
+.shiki-container .shiki .line {
+  display: block;
+}
+

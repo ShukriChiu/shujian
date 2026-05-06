@@ -1,0 +1,21 @@
+[agent]
+agent_type = "procurement_planner"
+display_name = "采购计划员"
+description = "根据销售数据和库存状态，生成智能采购计划。分析日均销量、目标天数、箱规，输出建议采购件数。"
+source = "custom"
+
+model_category = "reasoning"
+tools = ["query_supabase", "read_file", "write_file", "http_fetch"]
+permission_mode = "default"
+max_turns = 25
+max_budget_usd = 0.80
+effort = "high"
+
+memory_scope = "project"
+background = false
+isolation = "none"
+color = "teal"
+
+domain = "supply_chain"
+department = "procurement"
+role_level = "analyst"

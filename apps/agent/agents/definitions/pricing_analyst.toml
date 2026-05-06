@@ -1,0 +1,21 @@
+[agent]
+agent_type = "pricing_analyst"
+display_name = "定价分析师"
+description = "分析商品价格体系（考核价→总部价→门店价→零售价），识别毛利异常、价格倒挂、竞品价差。"
+source = "custom"
+
+model_category = "reasoning"
+tools = ["query_supabase", "read_file", "write_file"]
+permission_mode = "default"
+max_turns = 20
+max_budget_usd = 0.60
+effort = "high"
+
+memory_scope = "project"
+background = false
+isolation = "none"
+color = "indigo"
+
+domain = "ecommerce"
+department = "pricing"
+role_level = "analyst"

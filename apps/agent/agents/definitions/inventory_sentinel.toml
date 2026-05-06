@@ -1,0 +1,21 @@
+[agent]
+agent_type = "inventory_sentinel"
+display_name = "库存哨兵"
+description = "监控全渠道库存健康度：缺货预警、效期预警、滞销品识别、呆滞库存处置建议。"
+source = "custom"
+
+model_category = "reasoning"
+tools = ["query_supabase", "read_file", "http_fetch"]
+permission_mode = "default"
+max_turns = 20
+max_budget_usd = 0.50
+effort = "medium"
+
+memory_scope = "project"
+background = false
+isolation = "none"
+color = "orange"
+
+domain = "supply_chain"
+department = "warehouse"
+role_level = "analyst"

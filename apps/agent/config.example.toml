@@ -1,0 +1,108 @@
+# ============================
+# 友联数字员工运行时配置（示例）
+# ============================
+
+# --- 默认 LLM ---
+# 未指定 model_category 的 agent 使用此配置
+# 支持任何 OpenAI 兼容 API（SophNet / OpenRouter / 自建）
+[llm]
+provider = "openai"             # "openai" or "anthropic"
+model = "gpt-4o"
+# base_url = "https://api.openai.com/v1"
+# api_key_env = "OPENAI_API_KEY"
+max_rounds = 50
+
+# --- 模型类别路由（可选）---
+# 不同类型的任务用不同的模型
+# agent 通过 model_category 字段引用
+
+# [[model_categories]]
+# name = "deep_analysis"       # 深度分析：需要强推理
+# provider = "anthropic"
+# model = "claude-sonnet-4-20250514"
+# api_key_env = "ANTHROPIC_API_KEY"
+# max_rounds = 100
+
+# [[model_categories]]
+# name = "quick_ops"           # 快速操作：规则明确的简单任务
+# provider = "openai"
+# model = "gpt-4o-mini"
+# max_rounds = 20
+
+# [[model_categories]]
+# name = "erp_automation"      # ERP 自动化：需要稳定可靠
+# provider = "openai"
+# model = "gpt-4o"
+# max_rounds = 50
+
+# --- 数字员工 ---
+
+[[agents]]
+name = "document_clerk"
+workspace = "./agents/document_clerk"
+description = "文档分类数字员工"
+# model_category = "quick_ops"   # 引用上面的模型类别，不填则用默认 [llm]
+# tools = [...]                   # 指定可用工具列表，不填则全部可用
+
+# 纪律配置（可选，默认全部启用）
+# [agents.discipline]
+# enforce_todo = true            # Todo Enforcer：focus.md 有未完成项就继续执行
+# max_continuation = 3           # 最大续跑次数
+# accumulate_wisdom = true       # 任务完成后积累经验到 wisdom.md
+
+[[agents]]
+name = "inventory_watcher"
+workspace = "./agents/inventory_watcher"
+description = "库存预警数字员工"
+# model_category = "deep_analysis"
+
+[[agents]]
+name = "kingdee_operator"
+workspace = "./agents/kingdee_operator"
+description = "金蝶操作数字员工"
+# model_category = "erp_automation"
+# 不给 shell 工具，金蝶操作员只通过 HTTP 调用 union-agent
+tools = ["read_file", "write_file", "list_files", "http_fetch", "query_supabase", "batch"]
+
+[[agents]]
+name = "data_analyst"
+workspace = "./agents/data_analyst"
+description = "数据分析数字员工"
+# model_category = "deep_analysis"
+tools = ["read_file", "write_file", "list_files", "query_supabase", "batch"]
+
+# --- 服务器 ---
+[server]
+bind = "0.0.0.0:8002"
+max_concurrent_tasks = 5        # 最大并行任务数
+
+# --- 外部服务 ---
+[supabase]
+# 从环境变量读取: SUPABASE_URL, SUPABASE_KEY
+
+[union_agent]
+base_url = "http://localhost:8001"
+
+# --- 触发器 ---
+# 每个触发器可以指定 agent，不指定则用第一个 agent
+
+[[triggers]]
+name = "daily_document_scan"
+type = "cron"
+expr = "0 9 * * *"
+reason = "每天早上9点扫描新入库的文档，进行自动分类和字段提取"
+agent = "document_clerk"
+
+[[triggers]]
+name = "daily_inventory_check"
+type = "cron"
+expr = "0 8 * * *"
+reason = "每天早上8点检查全渠道库存，生成缺货预警和补货建议"
+agent = "inventory_watcher"
+
+# [[triggers]]
+# name = "hourly_sync_check"
+# type = "interval"
+# minutes = 60
+# reason = "每小时检查数据同步状态"
+# agent = "data_analyst"

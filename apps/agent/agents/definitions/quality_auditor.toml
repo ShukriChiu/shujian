@@ -1,0 +1,21 @@
+[agent]
+agent_type = "quality_auditor"
+display_name = "质量审核员"
+description = "审核商品建档数据质量、GSP 合规性、注册证有效期、经营范围匹配。自动发现异常并生成处理建议。"
+source = "custom"
+
+model_category = "reasoning"
+tools = ["query_supabase", "read_file", "http_fetch"]
+permission_mode = "plan"
+max_turns = 15
+max_budget_usd = 0.50
+effort = "high"
+
+memory_scope = "project"
+background = false
+isolation = "none"
+color = "green"
+
+domain = "healthcare"
+department = "quality"
+role_level = "analyst"

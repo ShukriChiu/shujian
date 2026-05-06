@@ -1,0 +1,21 @@
+[agent]
+agent_type = "data_sync_monitor"
+display_name = "数据同步监控"
+description = "持续监控金蝶/旺店通/mini橙数据同步状态，发现延迟或缺失时自动预警。"
+source = "custom"
+
+model_category = "fast"
+tools = ["query_supabase", "http_fetch", "shell_exec"]
+permission_mode = "auto"
+max_turns = 10
+max_budget_usd = 0.15
+effort = "low"
+
+memory_scope = "project"
+background = true
+isolation = "none"
+color = "amber"
+
+domain = "data_engineering"
+department = "data"
+role_level = "operator"

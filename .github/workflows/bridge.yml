@@ -1,0 +1,48 @@
+name: bridge
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/bridge/**"
+      - "packages/shared-types/**"
+      - "package.json"
+      - "bun.lockb"
+      - ".github/workflows/bridge.yml"
+  pull_request:
+    paths:
+      - "apps/bridge/**"
+      - "packages/shared-types/**"
+      - "package.json"
+      - "bun.lockb"
+      - ".github/workflows/bridge.yml"
+  workflow_dispatch:
+
+jobs:
+  check:
+    name: typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.6
+      - run: bun install --frozen-lockfile
+      - run: bun run --filter '@shujian/shared-types' typecheck
+      - run: cd apps/bridge && bun run typecheck
+
+  deploy:
+    name: deploy → Railway
+    needs: check
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Railway CLI
+        run: curl -fsSL https://railway.app/install.sh | sh
+      - name: Deploy
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          cd apps/bridge
+          railway up --service "${{ secrets.RAILWAY_BRIDGE_SERVICE }}" --detach
