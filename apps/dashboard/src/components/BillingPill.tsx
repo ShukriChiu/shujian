@@ -11,7 +11,7 @@ import {
   RefreshCw,
   Settings2,
   Sparkles,
-  Zap,
+  Wand2,
 } from 'lucide-react'
 import { cursorApi, type CursorUsage } from '@/lib/api'
 import { useCredentials } from '@/lib/useCredentials'
@@ -218,7 +218,7 @@ function Popover({ anchor, data, loading, fetching, onRefresh, onOpenCredentials
           {data?.usage.available && data.usage.planLimitCents != null && (
             <UsageBar
               icon={<Sparkles className="h-3 w-3" />}
-              label={data.usage.autoMessage ?? '本周期用量'}
+              label="本周期用量"
               used={data.usage.planUsedCents ?? 0}
               limit={data.usage.planLimitCents}
               extras={
@@ -229,20 +229,23 @@ function Popover({ anchor, data, loading, fetching, onRefresh, onOpenCredentials
             />
           )}
 
-          {data?.usage.available && data.usage.onDemandLimitCents != null && (
-            <UsageBar
-              icon={<Zap className="h-3 w-3" />}
-              label="按量付费 (overage)"
-              used={data.usage.onDemandUsedCents ?? 0}
-              limit={data.usage.onDemandLimitCents}
-              tone="amber"
-              extras={
-                data.plan.hardLimitDollars != null && data.plan.hardLimitDollars > 0
-                  ? `硬上限 $${data.plan.hardLimitDollars}`
-                  : undefined
-              }
-            />
-          )}
+          {data?.usage.available &&
+            (data.usage.autoPercentUsed != null || data.usage.apiPercentUsed != null) && (
+              <div className="space-y-2 rounded-lg border border-ink-100 bg-ink-50/30 p-2.5">
+                <PercentBar
+                  icon={<Wand2 className="h-3 w-3" />}
+                  label="Auto + Composer"
+                  pct={data.usage.autoPercentUsed ?? 0}
+                  hint="composer-1 / auto"
+                />
+                <PercentBar
+                  icon={<Sparkles className="h-3 w-3" />}
+                  label="API (其他模型)"
+                  pct={data.usage.apiPercentUsed ?? 0}
+                  hint="claude / gpt / gemini …"
+                />
+              </div>
+            )}
 
           {data && !data.usage.available && (
             <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-2.5">
@@ -296,14 +299,12 @@ function UsageBar({
   used,
   limit,
   extras,
-  tone = 'violet',
 }: {
   icon: React.ReactNode
   label: string
   used: number
   limit: number
   extras?: string
-  tone?: 'violet' | 'amber'
 }) {
   const pct = Math.min(100, (used / Math.max(1, limit)) * 100)
   const danger = pct > 90
@@ -312,9 +313,7 @@ function UsageBar({
     ? 'bg-red-500'
     : warn
       ? 'bg-amber-500'
-      : tone === 'amber'
-        ? 'bg-amber-500'
-        : 'bg-gradient-to-r from-violet-500 to-indigo-500'
+      : 'bg-gradient-to-r from-violet-500 to-indigo-500'
   return (
     <div>
       <div className="mb-1 flex items-center justify-between gap-2 text-[11px]">
@@ -335,6 +334,50 @@ function UsageBar({
       <div className="mt-0.5 flex items-center justify-between text-[10px] text-ink-500">
         <span>{pct.toFixed(1)}% used</span>
         {extras && <span>{extras}</span>}
+      </div>
+    </div>
+  )
+}
+
+// Percent-only bar — Cursor exposes Auto vs API split as percentages of
+// each bucket, but doesn't surface per-bucket dollar limits. So we render
+// just the percent.
+function PercentBar({
+  icon,
+  label,
+  pct,
+  hint,
+}: {
+  icon: React.ReactNode
+  label: string
+  pct: number
+  hint?: string
+}) {
+  const clamped = Math.min(100, Math.max(0, pct))
+  const danger = clamped > 90
+  const warn = clamped > 70 && !danger
+  const colorClass = danger
+    ? 'bg-red-500'
+    : warn
+      ? 'bg-amber-500'
+      : 'bg-gradient-to-r from-violet-500 to-indigo-500'
+  return (
+    <div>
+      <div className="mb-1 flex items-center justify-between gap-2 text-[11px]">
+        <div className="flex min-w-0 items-center gap-1.5 text-ink-700">
+          <span className="text-ink-500">{icon}</span>
+          <span className="truncate font-medium">{label}</span>
+          {hint && <span className="truncate text-[10px] text-ink-400">{hint}</span>}
+        </div>
+        <span className="font-mono text-[11px] font-semibold text-ink-900">
+          {clamped.toFixed(0)}%
+        </span>
+      </div>
+      <div className="h-1 overflow-hidden rounded-full bg-ink-100">
+        <div
+          className={cn('h-full rounded-full transition-all duration-500', colorClass)}
+          style={{ width: `${clamped}%` }}
+        />
       </div>
     </div>
   )
