@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Bot,
+  ChevronRight,
   Cloud,
   Cpu,
   Loader2,
@@ -12,6 +13,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
+import { Conversation } from './conversation/Conversation'
 import { agentApi, cursorApi, type AgentDto } from '@/lib/api'
 import { useVaults } from '@/lib/useVaults'
 import { cn } from '@/lib/utils'
@@ -136,7 +138,7 @@ export function AgentsView() {
         />
         {(selected || newOpen) && (
           <aside
-            className="hidden border-l border-line bg-surface xl:flex xl:flex-col"
+            className="hidden border-l border-line bg-surface xl:flex xl:min-h-0 xl:flex-col"
             style={{ viewTransitionName: 'agent-rail' } as React.CSSProperties}
           >
             {newOpen ? (
@@ -395,7 +397,7 @@ function AgentRail({ agent, onClose }: { agent: UnifiedAgent; onClose: () => voi
           <X className="h-3.5 w-3.5" />
         </button>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto scroll-thin">
+      <div className="flex min-h-0 flex-1 flex-col">
         {agent.kind === 'local' ? <LocalRail agent={agent} /> : <CursorRail agent={agent} />}
       </div>
     </div>
@@ -433,7 +435,7 @@ function LocalRail({ agent }: { agent: UnifiedAgent }) {
   const dto = agent.raw as AgentDto
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col overflow-y-auto scroll-thin">
       <section className="space-y-3 border-b border-line p-5">
         <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-ink-dim">
           Configuration
@@ -527,33 +529,7 @@ function LocalRail({ agent }: { agent: UnifiedAgent }) {
 
 function CursorRail({ agent }: { agent: UnifiedAgent }) {
   const qc = useQueryClient()
-  const [message, setMessage] = useState('')
-  const [history, setHistory] = useState<
-    Array<{ id: string; req: string; ok: boolean; res: string; ms: number; pr?: string }>
-  >([])
-
-  const send = useMutation({
-    mutationFn: async () => {
-      const t0 = performance.now()
-      const r = await cursorApi.send(agent.name, message)
-      return { r, ms: Math.round(performance.now() - t0) }
-    },
-    onSuccess: ({ r, ms }) => {
-      const pr = r.git?.branches?.[0]?.prUrl
-      setHistory((p) => [
-        {
-          id: crypto.randomUUID().slice(0, 8),
-          req: message,
-          ok: r.status === 'finished',
-          res: r.result ?? '(no result)',
-          ms,
-          pr,
-        },
-        ...p,
-      ].slice(0, 8))
-      setMessage('')
-    },
-  })
+  const [configOpen, setConfigOpen] = useState(false)
 
   const dispose = useMutation({
     mutationFn: () => cursorApi.dispose(agent.name),
@@ -561,98 +537,48 @@ function CursorRail({ agent }: { agent: UnifiedAgent }) {
   })
 
   return (
-    <div className="flex h-full flex-col">
-      <section className="space-y-3 border-b border-line p-5">
-        <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-ink-dim">
-          Configuration
-        </div>
-        <KV label="agent id" value={agent.name} mono />
-        <KV label="model" value={agent.model} mono />
-        <KV label="provider" value="cursor cloud" mono />
-        <div className="flex justify-end">
-          <button
-            onClick={() => dispose.mutate()}
-            disabled={dispose.isPending}
-            className="btn btn-ghost h-7 px-2 text-xs hover:text-bad"
-          >
-            <Trash2 className="h-3 w-3" />
-            {dispose.isPending ? 'Disposing' : 'Dispose'}
-          </button>
-        </div>
-      </section>
-
-      <section className="space-y-3 border-b border-line p-5">
-        <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-ink-dim">
-          Send a message (synchronous)
-        </div>
-        <textarea
-          className="textarea"
-          rows={3}
-          placeholder="给 cloud agent 发指令，等候完整 PR 回执"
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-        />
-        <div className="flex items-center justify-between">
-          <span className="font-mono text-[11px] text-ink-dim">cursor.send · 同步</span>
-          <button
-            className="btn btn-primary"
-            disabled={!message.trim() || send.isPending}
-            onClick={() => send.mutate()}
-          >
-            {send.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-            {send.isPending ? '运行中' : '发送'}
-          </button>
-        </div>
-        {send.error && (
-          <div
-            className="rounded-md px-3 py-2 text-xs"
-            style={{
-              border: '1px solid oklch(var(--bad-l) var(--bad-c) var(--bad-h) / 0.42)',
-              background: 'var(--bad-tint)',
-              color: 'oklch(var(--bad-l) var(--bad-c) var(--bad-h))',
-            }}
-          >
-            {(send.error as Error).message}
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="shrink-0 border-b border-line">
+        <button
+          type="button"
+          onClick={() => setConfigOpen((v) => !v)}
+          className="flex w-full items-center gap-2 px-5 py-2.5 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-dim transition-colors duration-150 ease-out-quart hover:bg-surface-2 hover:text-ink-muted"
+          aria-expanded={configOpen}
+        >
+          <ChevronRight
+            className={cn(
+              'h-3 w-3 transition-transform duration-150 ease-out-quart',
+              configOpen && 'rotate-90',
+            )}
+          />
+          configuration
+          <span className="ml-2 font-mono normal-case tracking-normal text-ink-muted">
+            {agent.model}
+          </span>
+          <span className="pill pill-muted ml-auto normal-case tracking-normal">cursor cloud</span>
+        </button>
+        {configOpen && (
+          <div className="space-y-2.5 border-t border-line bg-surface/50 px-5 py-4 animate-block-in">
+            <KV label="agent id" value={agent.name} mono />
+            <KV label="model" value={agent.model} mono />
+            {agent.repoUrl && <KV label="repo" value={agent.repoUrl} mono />}
+            <KV label="provider" value="cursor cloud" mono />
+            <div className="flex justify-end pt-1">
+              <button
+                onClick={() => dispose.mutate()}
+                disabled={dispose.isPending}
+                className="btn btn-ghost h-7 px-2 text-xs hover:text-bad"
+              >
+                <Trash2 className="h-3 w-3" />
+                {dispose.isPending ? 'Disposing' : 'Dispose'}
+              </button>
+            </div>
           </div>
         )}
-      </section>
-
-      <section className="flex-1 p-5">
-        <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-ink-dim">
-          Recent runs ({history.length})
-        </div>
-        {history.length === 0 ? (
-          <p className="mt-3 text-xs text-ink-dim">还没有运行结果。</p>
-        ) : (
-          <ul className="mt-3 space-y-3">
-            {history.map((h) => (
-              <li key={h.id} className="rounded-md border border-line bg-surface-2 p-3">
-                <div className="flex items-center justify-between text-[11px] text-ink-dim">
-                  <span className="font-mono">{h.id}</span>
-                  <span className="font-mono">{(h.ms / 1000).toFixed(1)}s</span>
-                  <span className={h.ok ? 'pill pill-ok' : 'pill pill-bad'}>
-                    {h.ok ? 'OK' : 'FAILED'}
-                  </span>
-                </div>
-                <div className="mt-2 text-xs text-ink">{h.req}</div>
-                <pre className="mt-2 max-h-48 overflow-auto rounded-md bg-surface px-3 py-2 font-mono text-[11px] leading-relaxed text-ink-muted scroll-thin">
-                  {h.res}
-                </pre>
-                {h.pr && (
-                  <a
-                    href={h.pr}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="mt-2 inline-flex items-center gap-1 text-[11px] text-accent hover:text-accent-hi"
-                  >
-                    {h.pr}
-                  </a>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      </div>
+      <div className="min-h-0 flex-1">
+        <Conversation agentId={agent.name} repoLabel={agent.repoUrl} />
+      </div>
     </div>
   )
 }
