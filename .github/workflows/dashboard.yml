@@ -18,12 +18,14 @@ on:
       - ".github/workflows/dashboard.yml"
   workflow_dispatch:
 
+# Deployment is handled by Cloudflare Pages' GitHub integration
+# (auto-deploys apps/dashboard/ on pushes to main, with PR previews).
+# This workflow is the PR gate: typecheck + build has to pass before merge.
+
 jobs:
   build:
     name: build + typecheck
     runs-on: ubuntu-latest
-    outputs:
-      built: ${{ steps.gate.outputs.built }}
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -33,27 +35,3 @@ jobs:
       - run: bun run --filter '@shujian/shared-types' typecheck
       - run: cd apps/dashboard && bun run typecheck
       - run: cd apps/dashboard && bunx vite build
-      - id: gate
-        run: echo "built=true" >> "$GITHUB_OUTPUT"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: dashboard-dist
-          path: apps/dashboard/dist
-          if-no-files-found: error
-
-  deploy:
-    name: deploy → Cloudflare Pages
-    needs: build
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          name: dashboard-dist
-          path: apps/dashboard/dist
-      - uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy apps/dashboard/dist --project-name=shujian-dashboard --branch=main

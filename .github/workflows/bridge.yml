@@ -18,6 +18,10 @@ on:
       - ".github/workflows/bridge.yml"
   workflow_dispatch:
 
+# Deployment is handled by Railway's GitHub integration
+# (auto-deploys apps/bridge/ on pushes to main).
+# This workflow is the PR gate: typecheck has to pass before merge.
+
 jobs:
   check:
     name: typecheck
@@ -30,19 +34,3 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run --filter '@shujian/shared-types' typecheck
       - run: cd apps/bridge && bun run typecheck
-
-  deploy:
-    name: deploy → Railway
-    needs: check
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install Railway CLI
-        run: curl -fsSL https://railway.app/install.sh | sh
-      - name: Deploy
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-        run: |
-          cd apps/bridge
-          railway up --service "${{ secrets.RAILWAY_BRIDGE_SERVICE }}" --detach
