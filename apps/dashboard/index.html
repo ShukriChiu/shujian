@@ -3,10 +3,30 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#0f172a" />
-    <title>Shujian · Agent Console</title>
+    <meta name="theme-color" content="#191712" />
+    <meta name="color-scheme" content="dark light" />
+    <title>Register · Shujian Control Plane</title>
+    <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
+    <script>
+      // Theme bootstrap — runs before paint to avoid flash. Default dark;
+      // honors stored preference, then prefers-color-scheme.
+      (function () {
+        try {
+          var stored = localStorage.getItem('shujian.theme.v1');
+          var prefersLight = window.matchMedia &&
+            window.matchMedia('(prefers-color-scheme: light)').matches;
+          var theme =
+            stored === 'light' || stored === 'dark'
+              ? stored
+              : prefersLight
+                ? 'light'
+                : 'dark';
+          if (theme === 'light') document.documentElement.classList.add('light');
+        } catch (e) {}
+      })();
+    </script>
   </head>
-  <body class="bg-app">
+  <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

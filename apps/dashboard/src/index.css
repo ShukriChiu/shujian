@@ -2,9 +2,122 @@
 @tailwind components;
 @tailwind utilities;
 
+/* OKLCH design tokens. Tailwind config maps these to color utilities;
+ * keep the lightness / chroma / hue split so we can interpolate via
+ * @property if we need to. */
 @layer base {
   :root {
+    color-scheme: dark;
+
+    /* surfaces — warm, low-chroma neutrals */
+    --bg-l: 0.158;
+    --bg-c: 0.006;
+    --bg-h: 70;
+
+    --surface-l: 0.196;
+    --surface-c: 0.007;
+    --surface-h: 70;
+
+    --surface-2-l: 0.232;
+    --surface-2-c: 0.008;
+    --surface-2-h: 70;
+
+    --surface-3-l: 0.275;
+    --surface-3-c: 0.009;
+    --surface-3-h: 70;
+
+    --line-l: 0.292;
+    --line-c: 0.011;
+    --line-h: 72;
+
+    --line-strong-l: 0.358;
+    --line-strong-c: 0.013;
+    --line-strong-h: 72;
+
+    /* ink */
+    --ink-l: 0.962;
+    --ink-c: 0.008;
+    --ink-h: 80;
+
+    --ink-muted-l: 0.745;
+    --ink-muted-c: 0.012;
+    --ink-muted-h: 75;
+
+    --ink-dim-l: 0.555;
+    --ink-dim-c: 0.014;
+    --ink-dim-h: 72;
+
+    --ink-inv-l: 0.158;
+    --ink-inv-c: 0.006;
+    --ink-inv-h: 70;
+
+    /* accent — warm orange */
+    --accent-l: 0.745;
+    --accent-c: 0.155;
+    --accent-h: 55;
+
+    --accent-hi-l: 0.812;
+    --accent-hi-c: 0.146;
+    --accent-hi-h: 60;
+
+    --accent-lo-l: 0.395;
+    --accent-lo-c: 0.108;
+    --accent-lo-h: 50;
+
+    /* status */
+    --ok-l: 0.745;
+    --ok-c: 0.142;
+    --ok-h: 158;
+
+    --warn-l: 0.802;
+    --warn-c: 0.158;
+    --warn-h: 88;
+
+    --bad-l: 0.685;
+    --bad-c: 0.218;
+    --bad-h: 25;
+
+    --info-l: 0.685;
+    --info-c: 0.118;
+    --info-h: 240;
+
+    /* derived */
+    --ring: oklch(var(--accent-l) var(--accent-c) var(--accent-h) / 0.45);
+    --accent-tint: oklch(var(--accent-l) var(--accent-c) var(--accent-h) / 0.12);
+    --accent-tint-hi: oklch(var(--accent-l) var(--accent-c) var(--accent-h) / 0.18);
+    --ok-tint: oklch(var(--ok-l) var(--ok-c) var(--ok-h) / 0.14);
+    --warn-tint: oklch(var(--warn-l) var(--warn-c) var(--warn-h) / 0.14);
+    --bad-tint: oklch(var(--bad-l) var(--bad-c) var(--bad-h) / 0.14);
+    --info-tint: oklch(var(--info-l) var(--info-c) var(--info-h) / 0.14);
+
+    --ease-out-quart: cubic-bezier(0.22, 1, 0.36, 1);
+    --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+
+    --topbar-h: 48px;
+    --sidebar-w: 240px;
+    --rail-w: 360px;
+  }
+
+  /* Light theme — flip L axis only, keep hue + chroma narrative.
+   * Triggered by `.light` class on <html> (default is dark). */
+  .light {
     color-scheme: light;
+    --bg-l: 0.985;
+    --surface-l: 0.972;
+    --surface-2-l: 0.948;
+    --surface-3-l: 0.918;
+    --line-l: 0.886;
+    --line-strong-l: 0.812;
+
+    --ink-l: 0.198;
+    --ink-muted-l: 0.408;
+    --ink-dim-l: 0.602;
+    --ink-inv-l: 0.985;
+
+    --accent-l: 0.612;
+    --accent-c: 0.162;
+    --accent-hi-l: 0.548;
+    --accent-lo-l: 0.482;
   }
 
   html,
@@ -13,111 +126,258 @@
     height: 100%;
   }
 
+  html {
+    background: oklch(var(--bg-l) var(--bg-c) var(--bg-h));
+  }
+
   body {
-    @apply font-sans text-ink-800 antialiased;
-    background: radial-gradient(circle at 20% -10%, #ede9fe 0%, transparent 35%),
-      radial-gradient(circle at 110% 0%, #dbeafe 0%, transparent 30%), #f8fafc;
+    @apply font-sans text-ink antialiased;
+    background: oklch(var(--bg-l) var(--bg-c) var(--bg-h));
+    font-feature-settings: 'cv11' 1, 'ss01' 1, 'tnum' 0;
   }
 
   ::selection {
-    background-color: #ddd6fe;
-    color: #2e1065;
+    background-color: oklch(var(--accent-l) var(--accent-c) var(--accent-h) / 0.32);
+    color: oklch(var(--ink-l) var(--ink-c) var(--ink-h));
+  }
+
+  /* Numeric tabular figures wherever timestamps / IDs / durations live */
+  .tabular,
+  table,
+  code,
+  .font-mono,
+  [data-tabular] {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1, 'cv11' 1;
+  }
+
+  /* focus default — visible, accent-tinted, never just outline:none */
+  :focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--ring);
+    border-radius: inherit;
   }
 }
 
 @layer components {
-  .bg-app {
-    @apply text-ink-900;
-  }
-
   .panel {
-    @apply rounded-xl border border-ink-200/70 bg-white/90 shadow-[0_1px_2px_rgba(15,23,42,0.04),_0_8px_24px_-8px_rgba(15,23,42,0.06)] backdrop-blur;
+    @apply rounded-lg border border-line bg-surface;
   }
 
-  .panel-header {
-    @apply flex items-center justify-between border-b border-ink-200/70 px-5 py-3;
+  .panel-head {
+    @apply flex items-center justify-between border-b border-line px-5 py-3;
   }
 
   .panel-title {
-    @apply text-sm font-semibold tracking-tight text-ink-900;
+    @apply text-sm font-medium text-ink;
   }
 
   .panel-sub {
-    @apply text-xs text-ink-500;
+    @apply text-xs text-ink-dim;
   }
 
+  /* pills — informational, no hover lift */
   .pill {
-    @apply inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide;
+    @apply inline-flex h-[22px] items-center gap-1 rounded-md border px-2 text-[11px] font-medium tracking-[0.005em];
   }
 
   .pill-ok {
-    @apply border-emerald-200 bg-emerald-50 text-emerald-700;
+    border-color: oklch(var(--ok-l) var(--ok-c) var(--ok-h) / 0.32);
+    background: var(--ok-tint);
+    color: oklch(var(--ok-l) var(--ok-c) var(--ok-h));
   }
   .pill-warn {
-    @apply border-amber-200 bg-amber-50 text-amber-700;
+    border-color: oklch(var(--warn-l) var(--warn-c) var(--warn-h) / 0.32);
+    background: var(--warn-tint);
+    color: oklch(var(--warn-l) var(--warn-c) var(--warn-h));
   }
   .pill-bad {
-    @apply border-red-200 bg-red-50 text-red-700;
+    border-color: oklch(var(--bad-l) var(--bad-c) var(--bad-h) / 0.32);
+    background: var(--bad-tint);
+    color: oklch(var(--bad-l) var(--bad-c) var(--bad-h));
   }
   .pill-info {
-    @apply border-blue-200 bg-blue-50 text-blue-700;
+    border-color: oklch(var(--info-l) var(--info-c) var(--info-h) / 0.32);
+    background: var(--info-tint);
+    color: oklch(var(--info-l) var(--info-c) var(--info-h));
   }
   .pill-muted {
-    @apply border-ink-200 bg-ink-50 text-ink-600;
+    @apply border-line bg-surface-2 text-ink-muted;
   }
   .pill-accent {
-    @apply border-violet-200 bg-violet-50 text-violet-700;
+    border-color: oklch(var(--accent-l) var(--accent-c) var(--accent-h) / 0.32);
+    background: var(--accent-tint);
+    color: oklch(var(--accent-l) var(--accent-c) var(--accent-h));
   }
 
+  /* buttons */
   .btn {
-    @apply inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-ink-300 bg-white px-3 text-xs font-medium text-ink-700 shadow-sm transition hover:border-ink-400 hover:bg-ink-50 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex h-8 select-none items-center justify-center gap-1.5 rounded-md border border-line-strong bg-surface-2 px-3 text-sm font-medium text-ink transition-colors duration-100 ease-out-quart hover:bg-surface-3 active:translate-y-[0.5px] disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   .btn-primary {
-    @apply border-violet-700 bg-violet-700 text-white hover:border-violet-800 hover:bg-violet-800;
+    @apply border-transparent bg-accent text-ink-inv hover:bg-accent-hi;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
   }
 
   .btn-ghost {
-    @apply border-transparent bg-transparent text-ink-500 shadow-none hover:bg-ink-100 hover:text-ink-800;
+    @apply border-transparent bg-transparent text-ink-muted shadow-none hover:bg-surface-2 hover:text-ink;
   }
 
-  .input {
-    @apply h-8 w-full rounded-md border border-ink-300 bg-white px-2.5 text-xs text-ink-800 placeholder:text-ink-400 focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-200;
+  .btn-danger {
+    @apply border-transparent text-ink-inv;
+    background: oklch(var(--bad-l) var(--bad-c) var(--bad-h));
+  }
+  .btn-danger:hover {
+    background: oklch(calc(var(--bad-l) + 0.04) var(--bad-c) var(--bad-h));
   }
 
+  /* inputs */
+  .input,
+  .textarea,
+  .select {
+    @apply w-full rounded-md border border-line bg-surface px-3 text-sm text-ink placeholder:text-ink-dim transition-colors;
+    transition-duration: 90ms;
+    transition-timing-function: var(--ease-out-quart);
+  }
+  .input,
+  .select {
+    @apply h-9;
+  }
   .textarea {
-    @apply w-full rounded-md border border-ink-300 bg-white px-3 py-2 text-xs text-ink-800 placeholder:text-ink-400 focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-200;
+    @apply min-h-[88px] py-2 leading-[20px];
+  }
+  .input:focus,
+  .textarea:focus,
+  .select:focus {
+    @apply outline-none;
+    border-color: oklch(var(--accent-l) var(--accent-c) var(--accent-h));
+    box-shadow: 0 0 0 2px var(--ring);
   }
 
   .select {
-    @apply h-8 w-full appearance-none rounded-md border border-ink-300 bg-white px-2 pr-7 text-xs text-ink-800 focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-200;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    appearance: none;
+    padding-right: 28px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
-    background-position: right 0.5rem center;
+    background-position: right 10px center;
+    color: oklch(var(--ink-muted-l) var(--ink-muted-c) var(--ink-muted-h));
   }
 
+  /* status dot */
+  .dot {
+    @apply inline-block h-[7px] w-[7px] rounded-full;
+  }
+  .dot-ok {
+    background: oklch(var(--ok-l) var(--ok-c) var(--ok-h));
+    box-shadow: 0 0 0 3px oklch(var(--ok-l) var(--ok-c) var(--ok-h) / 0.18);
+  }
+  .dot-running {
+    background: oklch(var(--accent-l) var(--accent-c) var(--accent-h));
+    box-shadow: 0 0 0 3px oklch(var(--accent-l) var(--accent-c) var(--accent-h) / 0.22);
+    animation: pulse-dot 1.6s var(--ease-out-quart) infinite;
+  }
+  .dot-warn {
+    background: oklch(var(--warn-l) var(--warn-c) var(--warn-h));
+    box-shadow: 0 0 0 3px oklch(var(--warn-l) var(--warn-c) var(--warn-h) / 0.18);
+  }
+  .dot-bad {
+    background: oklch(var(--bad-l) var(--bad-c) var(--bad-h));
+    box-shadow: 0 0 0 3px oklch(var(--bad-l) var(--bad-c) var(--bad-h) / 0.18);
+  }
+  .dot-idle {
+    background: oklch(var(--ink-dim-l) var(--ink-dim-c) var(--ink-dim-h));
+  }
+
+  /* row — list/table primitive */
   .row {
-    @apply grid grid-cols-12 gap-3 border-b border-ink-100 px-5 py-3 text-xs;
+    @apply grid items-center gap-3 border-b border-line px-5 py-3 text-sm transition-colors;
+    transition-duration: 90ms;
+    transition-timing-function: var(--ease-out-quart);
   }
-
+  .row:hover {
+    @apply bg-surface-2;
+  }
+  .row-active {
+    background: var(--accent-tint);
+  }
+  .row-active:hover {
+    background: var(--accent-tint-hi);
+  }
   .row-head {
-    @apply text-[10px] font-semibold uppercase tracking-wider text-ink-500;
+    @apply text-[11px] font-medium uppercase tracking-[0.06em] text-ink-dim;
   }
 
+  /* sidebar nav item */
+  .nav-item {
+    @apply flex h-8 items-center gap-2.5 rounded-md px-2.5 text-sm text-ink-muted transition-colors;
+    transition-duration: 90ms;
+    transition-timing-function: var(--ease-out-quart);
+  }
+  .nav-item:hover {
+    @apply bg-surface-2 text-ink;
+  }
+  .nav-item[aria-current='page'],
+  .nav-item[data-active='true'] {
+    @apply bg-surface-2 text-ink;
+  }
+  .nav-item[aria-current='page'] .nav-glyph,
+  .nav-item[data-active='true'] .nav-glyph {
+    color: oklch(var(--accent-l) var(--accent-c) var(--accent-h));
+  }
+  .nav-glyph {
+    @apply h-4 w-4 shrink-0 text-ink-dim transition-colors;
+    transition-duration: 90ms;
+  }
+  .nav-item:hover .nav-glyph {
+    @apply text-ink-muted;
+  }
+
+  /* subtle scrollbar */
   .scroll-thin {
     scrollbar-width: thin;
-    scrollbar-color: #cbd5e1 transparent;
+    scrollbar-color: oklch(var(--line-strong-l) var(--line-strong-c) var(--line-strong-h)) transparent;
+  }
+  .scroll-thin::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  .scroll-thin::-webkit-scrollbar-thumb {
+    background: oklch(var(--line-strong-l) var(--line-strong-c) var(--line-strong-h) / 0.5);
+    border-radius: 4px;
+  }
+  .scroll-thin::-webkit-scrollbar-thumb:hover {
+    background: oklch(var(--line-strong-l) var(--line-strong-c) var(--line-strong-h));
+  }
+
+  /* keyboard hint */
+  .kbd {
+    @apply inline-flex h-[18px] min-w-[18px] items-center justify-center rounded border border-line bg-surface px-1 font-mono text-[10px] text-ink-dim;
+  }
+
+  /* skeleton shimmer */
+  .skeleton {
+    background: linear-gradient(
+      90deg,
+      oklch(var(--surface-2-l) var(--surface-2-c) var(--surface-2-h)) 0%,
+      oklch(var(--surface-3-l) var(--surface-3-c) var(--surface-3-h)) 50%,
+      oklch(var(--surface-2-l) var(--surface-2-c) var(--surface-2-h)) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.6s ease-in-out infinite;
+    border-radius: 6px;
   }
 }
 
-/* — shiki output — keep its own theme colors but match our spacing/typography */
+/* shiki — match palette */
 .shiki-container .shiki {
   margin: 0;
-  padding: 0.5rem 0.75rem;
-  background: transparent !important;
+  padding: 0.75rem 1rem;
+  background: oklch(var(--surface-l) var(--surface-c) var(--surface-h)) !important;
   font-size: 12px;
-  line-height: 1.55;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  line-height: 1.6;
+  font-family: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  border-radius: 6px;
 }
 .shiki-container .shiki code {
   background: transparent;
@@ -128,3 +388,26 @@
   display: block;
 }
 
+/* View Transitions — agents row → detail rail */
+@supports (view-transition-name: a) {
+  ::view-transition-old(agent-rail),
+  ::view-transition-new(agent-rail) {
+    animation-duration: 320ms;
+    animation-timing-function: var(--ease-out-quart);
+  }
+}
+
+/* prefers-reduced-motion: kill non-essential motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .dot-running {
+    animation: none !important;
+  }
+}

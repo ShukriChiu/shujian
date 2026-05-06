@@ -23,6 +23,16 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (p) => p.replace(/^\/cursor/, ''),
       },
+      // shujian-backend (Rust + Axum, tenants & auth).
+      // Default target is the Railway prod deployment so the dashboard
+      // works out of the box without running the backend locally.
+      // Override with BACKEND_DEV_TARGET=http://localhost:8080 when actively
+      // hacking on the backend.
+      '/backend': {
+        target: process.env.BACKEND_DEV_TARGET ?? 'https://backend-production-fb29.up.railway.app',
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/backend/, ''),
+      },
     },
   },
   resolve: {
@@ -30,8 +40,6 @@ export default defineConfig({
       '@': resolve(__dirname, './src'),
     },
   },
-  // Pre-bundle the heavy lazy-loaded deps so the first dynamic `import()`
-  // doesn't fail with "Failed to fetch dynamically imported module".
   optimizeDeps: {
     include: ['mermaid', 'shiki'],
   },
