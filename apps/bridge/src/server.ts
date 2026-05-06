@@ -575,12 +575,17 @@ app.post('/runs/:runId/cancel', async (c) => {
   return c.json({ cancelled: runId, status: run.status })
 })
 
-console.log(`[cursor-bridge] listening on http://localhost:${PORT}`)
+// Bind to 0.0.0.0 in containers (Railway, Fly, Docker) so the platform proxy
+// can reach us. Outside containers (local dev) Bun's default 127.0.0.1 is fine.
+const HOSTNAME = process.env.HOSTNAME_BIND ?? (process.env.RAILWAY_ENVIRONMENT_NAME || process.env.PORT ? '0.0.0.0' : '127.0.0.1')
+
+console.log(`[cursor-bridge] listening on http://${HOSTNAME}:${PORT}`)
 console.log(`[cursor-bridge] default model = ${DEFAULT_MODEL}`)
 console.log(`[cursor-bridge] default cwd   = ${DEFAULT_CWD}`)
 
 export default {
   port: PORT,
+  hostname: HOSTNAME,
   // SSE streams + long agent runs need much more than Bun's 10s default
   idleTimeout: 255,
   fetch: app.fetch,
