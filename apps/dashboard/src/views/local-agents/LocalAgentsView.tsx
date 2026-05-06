@@ -107,7 +107,7 @@ export function LocalAgentsView() {
           <div className="flex items-center gap-2 px-2 py-3 text-xs text-ink-500">
             <Loader2 className="h-3 w-3 animate-spin" /> 加载中…
           </div>
-        ) : agents.data?.length ? (
+        ) : Array.isArray(agents.data) && agents.data.length ? (
           <div className="space-y-2">
             {agents.data.map((a) => (
               <AgentCard

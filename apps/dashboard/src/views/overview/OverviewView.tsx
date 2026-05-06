@@ -114,7 +114,7 @@ export function OverviewView() {
         >
           {triggers.error ? (
             <ErrorBanner error={triggers.error} />
-          ) : triggers.data?.length ? (
+          ) : Array.isArray(triggers.data) && triggers.data.length ? (
             <div className="divide-y divide-ink-100">
               {triggers.data.map((t) => (
                 <div key={t.name} className="px-5 py-3 text-xs">

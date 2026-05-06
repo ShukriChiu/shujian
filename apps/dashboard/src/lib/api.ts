@@ -27,6 +27,17 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
     },
   })
   const text = await res.text()
+  // Detect SPA fallback: hosting (Cloudflare Pages, Netlify, etc.) returns
+  // index.html for unknown routes, which would otherwise look like a 200 OK
+  // string body and crash callers that expect JSON. Treat it as a 502 so
+  // useQuery surfaces an error state instead of corrupting downstream data.
+  const ct = res.headers.get('content-type') ?? ''
+  if (ct.includes('text/html') || text.startsWith('<!doctype') || text.startsWith('<!DOCTYPE')) {
+    throw new ApiError(
+      502,
+      `Endpoint not reachable: ${url} returned HTML (no API at this path in current deployment)`,
+    )
+  }
   let body: unknown = text
   if (text) {
     try {
