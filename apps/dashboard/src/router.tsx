@@ -10,6 +10,9 @@ const WorkspaceView = lazy(() =>
   import('./views/workspace/WorkspaceView').then((m) => ({ default: m.WorkspaceView })),
 )
 const VaultsView = lazy(() => import('./views/vaults/VaultsView').then((m) => ({ default: m.VaultsView })))
+const PersonasView = lazy(() =>
+  import('./views/personas/PersonasView').then((m) => ({ default: m.PersonasView })),
+)
 const SettingsView = lazy(() =>
   import('./views/settings/SettingsView').then((m) => ({ default: m.SettingsView })),
 )
@@ -50,6 +53,7 @@ export const router = createBrowserRouter([
       { path: 'agents', element: <AgentsView /> },
       { path: 'workspace', element: <WorkspaceView /> },
       { path: 'vaults', element: <VaultsView /> },
+      { path: 'personas', element: <PersonasView /> },
       { path: 'schedules', element: <SchedulesView /> },
       { path: 'audit-log', element: <AuditView /> },
       { path: 'billing', element: <BillingView /> },

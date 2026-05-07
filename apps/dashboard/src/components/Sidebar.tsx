@@ -36,6 +36,10 @@ const PRIMARY: NavItem[] = [
 ]
 
 const SECONDARY: NavItem[] = [
+  // Personas sit next to Vaults because they consume scopes from there;
+  // mental model: vaults = "what credentials we have", personas = "who
+  // we hand them to and how the dashboard renders their work".
+  { to: '/personas', label: 'Personas', icon: Bot },
   { to: '/vaults', label: 'Vaults', icon: KeyRound },
   { to: '/billing', label: 'Billing', icon: CreditCard },
   { to: '/settings', label: 'Settings', icon: Settings },

@@ -73,7 +73,7 @@ impl Config {
         let onion_api_base = env::var("ONION_API_BASE")
             .ok()
             .map(|s| s.trim_end_matches('/').to_string())
-            .unwrap_or_else(|| "https://onion-agent.shujian.art".into());
+            .unwrap_or_else(|| "https://onion-api.shujian.art".into());
         let backend_shared_secret = env::var("BACKEND_SHARED_SECRET").unwrap_or_default();
         let default_persona_jwt_ttl_seconds = env::var("DEFAULT_PERSONA_JWT_TTL_SECONDS")
             .ok()

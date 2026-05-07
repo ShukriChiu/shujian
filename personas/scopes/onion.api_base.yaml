@@ -14,5 +14,6 @@ bindings:
   - kind: static
     env: ONION_API_BASE
     # Override per-tenant by deploying with a different value. Keep
-    # it in lockstep with the dashboard's NEXT_PUBLIC_ONION_API_BASE.
-    value: https://onion-agent.shujian.art
+    # it in lockstep with the dashboard's NEXT_PUBLIC_ONION_API_BASE
+    # and the backend's ONION_API_BASE Railway env var.
+    value: https://onion-api.shujian.art
