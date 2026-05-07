@@ -81,6 +81,15 @@
     --info-c: 0.118;
     --info-h: 240;
 
+    /* chart palette — warm-led so single-series feels native to the brand,
+     * with cool/violet/sage/rose for multi-series rotation. */
+    --chart-1: oklch(0.752 0.158 56);   /* accent warm orange */
+    --chart-2: oklch(0.708 0.118 198);  /* teal */
+    --chart-3: oklch(0.815 0.122 92);   /* amber */
+    --chart-4: oklch(0.668 0.142 290);  /* violet */
+    --chart-5: oklch(0.748 0.092 145);  /* sage */
+    --chart-6: oklch(0.682 0.158 18);   /* rose */
+
     /* derived */
     --ring: oklch(var(--accent-l) var(--accent-c) var(--accent-h) / 0.45);
     --accent-tint: oklch(var(--accent-l) var(--accent-c) var(--accent-h) / 0.12);
@@ -118,6 +127,14 @@
     --accent-c: 0.162;
     --accent-hi-l: 0.548;
     --accent-lo-l: 0.482;
+
+    /* chart palette — pulled toward the cooler/deeper end on light theme */
+    --chart-1: oklch(0.628 0.162 52);
+    --chart-2: oklch(0.582 0.118 198);
+    --chart-3: oklch(0.728 0.118 88);
+    --chart-4: oklch(0.548 0.158 290);
+    --chart-5: oklch(0.612 0.092 145);
+    --chart-6: oklch(0.582 0.158 18);
   }
 
   html,

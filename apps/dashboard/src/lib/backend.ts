@@ -11,11 +11,19 @@
 const TOKEN_KEY = 'shujian.backend.token.v1'
 const TENANT_KEY = 'shujian.backend.tenant.v1'
 
+/**
+ * Production default — kept here so Cloudflare Pages auto-builds (which
+ * don't have VITE_BACKEND_URL set) still hit the real backend instead of
+ * the SPA-fallback HTML at `/backend/*`.
+ */
+const PROD_BACKEND_URL = 'https://backend-production-fb29.up.railway.app'
+
 export const BACKEND_BASE: string = (() => {
   const envUrl = (import.meta.env.VITE_BACKEND_URL ?? '').replace(/\/$/, '')
   if (envUrl) return envUrl
-  // dev fallback — Vite proxies /backend → :8080
-  return '/backend'
+  // local dev runs against Vite which proxies /backend → :8080
+  if (import.meta.env.DEV) return '/backend'
+  return PROD_BACKEND_URL
 })()
 
 export interface UserPublic {

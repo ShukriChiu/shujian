@@ -8,6 +8,7 @@ import {
   Command,
   CreditCard,
   KeyRound,
+  LayoutDashboard,
   ListChecks,
   Search,
   ScrollText,
@@ -28,6 +29,7 @@ interface NavItem {
 }
 
 const PRIMARY: NavItem[] = [
+  { to: '/workspace', label: 'Workspace', icon: LayoutDashboard, shortcut: 'G W' },
   { to: '/agents', label: 'Agents', icon: Bot, shortcut: 'G A' },
   { to: '/schedules', label: 'Schedules', icon: CalendarClock, shortcut: 'G S' },
   { to: '/audit-log', label: 'Audit log', icon: ScrollText, shortcut: 'G L' },

@@ -6,6 +6,9 @@ import { RouteFallback } from './components/RouteFallback'
 
 const LoginView = lazy(() => import('./views/login/LoginView').then((m) => ({ default: m.LoginView })))
 const AgentsView = lazy(() => import('./views/agents/AgentsView').then((m) => ({ default: m.AgentsView })))
+const WorkspaceView = lazy(() =>
+  import('./views/workspace/WorkspaceView').then((m) => ({ default: m.WorkspaceView })),
+)
 const VaultsView = lazy(() => import('./views/vaults/VaultsView').then((m) => ({ default: m.VaultsView })))
 const SettingsView = lazy(() =>
   import('./views/settings/SettingsView').then((m) => ({ default: m.SettingsView })),
@@ -45,6 +48,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <Navigate to="/agents" replace /> },
       { path: 'agents', element: <AgentsView /> },
+      { path: 'workspace', element: <WorkspaceView /> },
       { path: 'vaults', element: <VaultsView /> },
       { path: 'schedules', element: <SchedulesView /> },
       { path: 'audit-log', element: <AuditView /> },
