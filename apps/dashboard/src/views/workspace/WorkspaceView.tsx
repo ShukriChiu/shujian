@@ -41,9 +41,13 @@ import { cn } from '@/lib/utils'
  *                 the issuance bundle. The dashboard never knows
  *                 onion-agent's business shapes.
  *
- *   "工具产物"   — the legacy artifact stream: every Cursor `tool_call`
- *                 result the agent emits during the conversation,
- *                 rendered through the existing JSON-render pipeline.
+ *   "画布"      — the canvas protocol stream. Whenever the agent
+ *                 emits a closed ```canvas fenced JSON in its reply,
+ *                 `useCursorChat` extracts it, compiles it through
+ *                 `canvasBlockToBundle` (json-render shorthand →
+ *                 Spec) and pushes it here. Tool calls themselves
+ *                 stay inside the chat as collapsible rows; only
+ *                 what the agent *chose* to render reaches the canvas.
  */
 export function WorkspaceView() {
   const [params, setParams] = useSearchParams()
@@ -98,7 +102,7 @@ function NoAgentPlaceholder() {
           先选一个 agent
         </h2>
         <p className="mt-1.5 text-[12.5px] leading-[1.6] text-ink-muted">
-          Workspace 会把当前 cursor agent 的对话和工具产物并排展开。
+          Workspace 会把当前 cursor agent 的对话和它输出的画布并排展开。
         </p>
         <Link
           to="/agents"
@@ -421,7 +425,7 @@ function RightPaneTabs({
   return (
     <div className="flex shrink-0 items-center gap-1 border-b border-line bg-surface/60 px-3 py-1.5 backdrop-blur">
       <Tab on={tab === 'panel'} onClick={() => setTab('panel')} icon={<Sparkles className="h-3 w-3" />} label="面板" count={panelCount} />
-      <Tab on={tab === 'tools'} onClick={() => setTab('tools')} icon={<ExternalLink className="h-3 w-3" />} label="工具产物" count={toolCount} />
+      <Tab on={tab === 'tools'} onClick={() => setTab('tools')} icon={<ExternalLink className="h-3 w-3" />} label="画布" count={toolCount} />
     </div>
   )
 }

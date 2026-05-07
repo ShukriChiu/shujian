@@ -5,15 +5,15 @@
  *   1. SSE wiring — startStreamingRun → EventSource → applyEvent.
  *      Falls back to the synchronous /messages call when the bridge
  *      doesn't expose streaming.
- *   2. Surface tool_call results as `ArtifactBundle`s in the right
- *      pane. Real cursor tools don't (yet) emit dashboard-shaped
- *      artifacts, so we synthesize a basic "tool result" artifact per
- *      completed tool_call. When real tools start emitting structured
- *      results we'll switch to a `kind: 'agent_tool'` capability source.
+ *   2. Canvas protocol — scan every assistant text block for closed
+ *      ```canvas fenced JSON, compile it via `canvasBlockToBundle`,
+ *      and surface the result on the right pane. Tool calls stay in
+ *      the chat (collapsible rows in WorkspaceChat) and never
+ *      auto-promote to artifacts; the canvas is for what the agent
+ *      *explicitly* chose to render.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { Spec } from '@json-render/core'
 import {
   buildCursorStreamUrl,
   buildCursorStreamUrlWithAuth,
@@ -25,10 +25,13 @@ import {
   applyEvent,
   newAssistantTurn,
   newUserTurn,
-  type AssistantBlock,
   type Turn,
 } from '@/views/agents/conversation/turns'
 import type { ArtifactBundle } from '@/views/agents/conversation/artifact/types'
+import {
+  canvasBlockToBundle,
+  extractCanvasBlocks,
+} from '@/views/agents/conversation/artifact/canvasProtocol'
 
 interface Options {
   agentId: string
@@ -68,28 +71,41 @@ export function useCursorChat({ agentId }: Options): WorkspaceChatHook {
   const [activeArtifactId, setActiveArtifactId] = useState<string | null>(null)
   const esRef = useRef<EventSource | null>(null)
   const startedAtRef = useRef<number>(0)
-  const seenToolCallsRef = useRef<Set<string>>(new Set())
+  // Per-(turn, hash) dedupe so re-renders or retries of the same canvas
+  // block don't pile up duplicate tabs.
+  const seenCanvasRef = useRef<Set<string>>(new Set())
 
-  /* ------------------------- collect tool artifacts ----------------------- */
+  /* ------------------- canvas protocol: text → artifacts ------------------ */
 
-  // Whenever the latest assistant turn picks up a `completed` tool_call
-  // we haven't surfaced yet, drop a corresponding artifact into the
-  // right pane. This is intentionally loose — real Cursor tools return
-  // anything; we render their result through a generic JSON viewer.
+  // Whenever any assistant text block grows, re-scan it for closed
+  // ```canvas fences. The extractor is streaming-safe (open blocks are
+  // ignored until they close), so it's fine to run on every turn delta.
   useEffect(() => {
-    const last = turns[turns.length - 1]
-    if (!last || last.role !== 'assistant') return
-    for (const block of last.blocks) {
-      if (block.kind !== 'tool_call') continue
-      if (block.status !== 'completed') continue
-      if (seenToolCallsRef.current.has(block.callId)) continue
-      seenToolCallsRef.current.add(block.callId)
-      setArtifacts((prev) => [
-        ...prev,
-        toolCallToArtifact(block, last.id),
-      ])
-      setActiveArtifactId(`tool-${block.callId}`)
+    const newBundles: ArtifactBundle[] = []
+    let lastNewId: string | null = null
+    for (const t of turns) {
+      if (t.role !== 'assistant') continue
+      for (let i = 0; i < t.blocks.length; i++) {
+        const b = t.blocks[i]
+        if (b?.kind !== 'text') continue
+        const { blocks, hashes } = extractCanvasBlocks(b.text)
+        for (let k = 0; k < blocks.length; k++) {
+          const h = hashes[k]
+          if (!h) continue
+          const dedupeKey = `${t.id}:${h}`
+          if (seenCanvasRef.current.has(dedupeKey)) continue
+          seenCanvasRef.current.add(dedupeKey)
+          const id = `canvas-${t.id}-${h}`
+          newBundles.push(
+            canvasBlockToBundle(blocks[k]!, { id, index: k, turnId: t.id }),
+          )
+          lastNewId = id
+        }
+      }
     }
+    if (newBundles.length === 0) return
+    setArtifacts((prev) => [...prev, ...newBundles])
+    if (lastNewId) setActiveArtifactId(lastNewId)
   }, [turns])
 
   /* ------------------------- streaming machinery ------------------------- */
@@ -235,7 +251,7 @@ export function useCursorChat({ agentId }: Options): WorkspaceChatHook {
     setTurns([])
     setArtifacts([])
     setActiveArtifactId(null)
-    seenToolCallsRef.current.clear()
+    seenCanvasRef.current.clear()
   }, [stop])
 
   return useMemo(
@@ -252,78 +268,4 @@ export function useCursorChat({ agentId }: Options): WorkspaceChatHook {
     }),
     [turns, busy, artifacts, activeArtifactId, send, stop, selectArtifact, removeArtifact, reset],
   )
-}
-
-/* -------------------------------------------------------------------------- */
-/* Map a completed tool_call into a generic artifact for the right pane.      */
-/* -------------------------------------------------------------------------- */
-
-function toolCallToArtifact(
-  block: Extract<AssistantBlock, { kind: 'tool_call' }>,
-  turnId: string,
-): ArtifactBundle {
-  const summary = summarizeUnknown(block.result)
-  // Render the tool result inside a Frame > Stack > Heading + Text pair.
-  // Keeping spec generic until we have a proper agent_tool ↔ capability
-  // bridge.
-  const spec: Spec = {
-    root: 'root',
-    elements: {
-      root: {
-        type: 'Frame',
-        props: { title: block.name, subtitle: 'tool call · live' },
-        slots: { default: ['stack'] },
-      },
-      stack: {
-        type: 'Stack',
-        props: { gap: 'md' },
-        slots: { default: ['args', 'result'] },
-      },
-      args: {
-        type: 'Text',
-        props: {
-          text: '**input**\n\n```json\n' + safeStringify(block.args) + '\n```',
-          variant: 'body',
-        },
-      },
-      result: {
-        type: 'Text',
-        props: {
-          text: '**result**\n\n```json\n' + safeStringify(block.result) + '\n```',
-          variant: 'body',
-        },
-      },
-    },
-  } as unknown as Spec
-
-  return {
-    id: `tool-${block.callId}`,
-    kind: 'tool',
-    title: block.name,
-    summary,
-    narrative: `工具调用 \`${block.name}\` 在 turn ${turnId} 完成。`,
-    spec,
-  }
-}
-
-function summarizeUnknown(value: unknown): string {
-  if (value === null || value === undefined) return '(empty)'
-  if (typeof value === 'string') {
-    const oneLine = value.replace(/\s+/g, ' ').trim()
-    return oneLine.length > 80 ? oneLine.slice(0, 77) + '…' : oneLine
-  }
-  if (typeof value === 'object') {
-    const keys = Object.keys(value as Record<string, unknown>)
-    return keys.length === 0 ? '{}' : `{ ${keys.slice(0, 4).join(', ')}${keys.length > 4 ? ', …' : ''} }`
-  }
-  return String(value)
-}
-
-function safeStringify(value: unknown): string {
-  try {
-    const s = JSON.stringify(value, null, 2)
-    return s.length > 4000 ? s.slice(0, 4000) + '\n…(truncated)' : s
-  } catch {
-    return String(value)
-  }
 }

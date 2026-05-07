@@ -167,9 +167,11 @@ function EmptyArtifactPane() {
           <Database className="h-6 w-6 text-accent" />
         </div>
       </div>
-      <h2 className="text-[16px] font-semibold tracking-[-0.012em] text-ink">画布等工具产物</h2>
+      <h2 className="text-[16px] font-semibold tracking-[-0.012em] text-ink">画布等 agent 出图</h2>
       <p className="mt-2 max-w-md text-[12.5px] leading-[1.6] text-ink-muted">
-        左侧 agent 每次完成一个工具调用，结果都会作为一张可缩放、可继续追问的画布出现在这里。
+        当 agent 用 <span className="kbd">```canvas</span> 输出 KPI、图表、表格时，
+        json-render 会把它编译成一张可缩放、可继续追问的画布并出现在这里。
+        工具调用本身留在左侧对话里折叠展示。
       </p>
     </section>
   )

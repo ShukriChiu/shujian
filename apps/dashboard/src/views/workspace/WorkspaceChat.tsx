@@ -26,6 +26,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Markdown } from '@/views/agents/conversation/Markdown'
+import { hideCanvasInText } from '@/views/agents/conversation/artifact/canvasProtocol'
 import type { AssistantBlock, Turn } from '@/views/agents/conversation/turns'
 import type { WorkspaceChatHook } from '@/lib/useCursorChat'
 import {
@@ -69,10 +70,7 @@ export function WorkspaceChat({ chat, onArtifactRequested }: Props) {
   return (
     <div className="flex h-full min-h-0 flex-col bg-surface/40">
       <ChatHeader chat={chat} lastQuestion={lastQuestion} />
-      <ScrollableThread
-        turns={chat.turns}
-        onArtifactClick={(id) => chat.selectArtifact(id)}
-      />
+      <ScrollableThread turns={chat.turns} />
       <Composer
         value={draft}
         onChange={setDraft}
@@ -127,13 +125,7 @@ function ChatHeader({
 
 /* -------------------------------- thread -------------------------------- */
 
-function ScrollableThread({
-  turns,
-  onArtifactClick,
-}: {
-  turns: Turn[]
-  onArtifactClick: (id: string) => void
-}) {
+function ScrollableThread({ turns }: { turns: Turn[] }) {
   const ref = useRef<HTMLDivElement>(null)
   const [pinned, setPinned] = useState(true)
 
@@ -171,7 +163,7 @@ function ScrollableThread({
               {t.role === 'user' ? (
                 <UserBubble t={t} />
               ) : (
-                <AssistantTurn t={t} onArtifactClick={onArtifactClick} />
+                <AssistantTurn t={t} />
               )}
             </li>
           ))}
@@ -210,7 +202,8 @@ function EmptyState() {
         问点什么
       </h2>
       <p className="mt-1.5 text-[12.5px] leading-[1.6] text-ink-muted">
-        通过 cursor agent 取数、做图、给建议。每次工具调用都会在右侧画布上展开。
+        通过 cursor agent 取数、做图、给建议。让它用 <span className="kbd">```canvas</span> 把
+        KPI / 图表 / 表格输出到右侧画布。
       </p>
       <p className="mt-2 text-[11px] text-ink-dim">
         输入 <span className="kbd">/</span> 调用 skills · <span className="kbd">⌘↵</span> 发送
@@ -234,13 +227,7 @@ function UserBubble({ t }: { t: Extract<Turn, { role: 'user' }> }) {
   )
 }
 
-function AssistantTurn({
-  t,
-  onArtifactClick,
-}: {
-  t: Extract<Turn, { role: 'assistant' }>
-  onArtifactClick: (id: string) => void
-}) {
+function AssistantTurn({ t }: { t: Extract<Turn, { role: 'assistant' }> }) {
   const streaming = t.status === 'streaming'
   return (
     <div className="flex animate-block-in flex-col gap-2">
@@ -265,7 +252,6 @@ function AssistantTurn({
           block={b}
           last={i === t.blocks.length - 1}
           streaming={streaming}
-          onArtifactClick={onArtifactClick}
         />
       ))}
     </div>
@@ -289,15 +275,19 @@ function BlockView({
   block,
   last,
   streaming,
-  onArtifactClick,
 }: {
   block: AssistantBlock
   last: boolean
   streaming: boolean
-  onArtifactClick: (id: string) => void
 }) {
   if (block.kind === 'text') {
-    return <Markdown text={block.text} streaming={streaming && last} />
+    // ```canvas blocks are routed to the right pane via the canvas
+    // protocol — strip them out of the chat surface so the prose
+    // stays narrative-only. `hideCanvasInText` handles in-progress
+    // (unclosed) blocks too, so streaming doesn't briefly leak JSON.
+    const visible = hideCanvasInText(block.text)
+    if (!visible) return null
+    return <Markdown text={visible} streaming={streaming && last} />
   }
   if (block.kind === 'thinking') {
     return <ThinkingBlock text={block.text} />
@@ -306,7 +296,7 @@ function BlockView({
   // emits, fall back to a generic foldable row for everything else.
   if (block.name === 'updateTodos') return <TodoListCallRow block={block} />
   if (block.name === 'task') return <SubagentCallRow block={block} />
-  return <ToolCallRow block={block} onArtifactClick={onArtifactClick} />
+  return <ToolCallRow block={block} />
 }
 
 const ThinkingBlock = memo(function ThinkingBlock({ text }: { text: string }) {
@@ -338,10 +328,8 @@ type ToolCallBlock = Extract<AssistantBlock, { kind: 'tool_call' }>
 
 const ToolCallRow = memo(function ToolCallRow({
   block,
-  onArtifactClick,
 }: {
   block: ToolCallBlock
-  onArtifactClick: (id: string) => void
 }) {
   const status = block.status
   // Default open while the call is in-flight so the user can see what
@@ -359,8 +347,7 @@ const ToolCallRow = memo(function ToolCallRow({
     wasRunning.current = status === 'running'
   }, [status])
 
-  const result = block.result as { kind?: string; summary?: string } | undefined
-  const artifactId = result?.kind ? `${result.kind}-q3` : `tool-${block.callId}`
+  const result = block.result as { summary?: string } | undefined
   const summary =
     result?.summary ??
     (status === 'completed'
@@ -402,25 +389,6 @@ const ToolCallRow = memo(function ToolCallRow({
         <span className="min-w-0 flex-1 truncate text-[11.5px] text-ink-muted">
           {summary}
         </span>
-        {status === 'completed' && artifactId && (
-          <span
-            role="button"
-            tabIndex={0}
-            onClick={(e) => {
-              e.stopPropagation()
-              onArtifactClick(artifactId)
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.stopPropagation()
-                onArtifactClick(artifactId)
-              }
-            }}
-            className="text-[11px] font-mono uppercase tracking-[0.06em] text-accent transition-colors hover:text-accent-hi"
-          >
-            ↗ open
-          </span>
-        )}
       </button>
       {open && (
         <div className="space-y-2 border-t border-line/60 px-3 py-2 pl-9">
@@ -476,7 +444,7 @@ const TodoListCallRow = memo(function TodoListCallRow({ block }: { block: ToolCa
   const [open, setOpen] = useState(true)
 
   if (!todos || todos.length === 0) {
-    return <ToolCallRow block={block} onArtifactClick={() => {}} />
+    return <ToolCallRow block={block} />
   }
 
   const stats = todos.reduce(
