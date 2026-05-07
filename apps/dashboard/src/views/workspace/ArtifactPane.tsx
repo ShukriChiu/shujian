@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Database, Download, Maximize2, Minimize2, Sparkles, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ArtifactRenderer } from '@/views/agents/conversation/artifact/registry'
-import type { ArtifactBundle } from '@/views/agents/conversation/artifact/mock-data'
+import type { ArtifactBundle } from '@/views/agents/conversation/artifact/types'
 
 interface Props {
   artifacts: ArtifactBundle[]
@@ -167,31 +167,10 @@ function EmptyArtifactPane() {
           <Database className="h-6 w-6 text-accent" />
         </div>
       </div>
-      <h2 className="text-[16px] font-semibold tracking-[-0.012em] text-ink">画布等你提问</h2>
+      <h2 className="text-[16px] font-semibold tracking-[-0.012em] text-ink">画布等工具产物</h2>
       <p className="mt-2 max-w-md text-[12.5px] leading-[1.6] text-ink-muted">
-        在左侧问任何关于业务的问题，我从 vaults 取数、生成图表、给建议——
-        每个回答都是一张可继续追问的画布。
+        左侧 agent 每次完成一个工具调用，结果都会作为一张可缩放、可继续追问的画布出现在这里。
       </p>
-      <ul className="mt-6 flex flex-col items-stretch gap-1 text-[11.5px]">
-        {[
-          { label: 'Q3 营收情况', hint: '多指标 + 营收/退款双线' },
-          { label: '退款主要原因', hint: '横向条形 + 高退款班次表' },
-          { label: '未消课时风险', hint: '堆叠柱状 + 班次负债表' },
-          { label: '员工绩效', hint: 'KPI 表 + 续费/退款双柱' },
-        ].map((c, i) => (
-          <li
-            key={c.label}
-            className="grid animate-fade-up grid-cols-[160px_auto] items-center gap-3 font-mono opacity-0"
-            style={{ animationDelay: `${120 + i * 60}ms` }}
-          >
-            <span className="text-right text-ink">{c.label}</span>
-            <span className="flex items-center gap-2 text-left text-ink-dim">
-              <span className="h-px w-4 bg-line-strong" aria-hidden />
-              {c.hint}
-            </span>
-          </li>
-        ))}
-      </ul>
     </section>
   )
 }
@@ -199,7 +178,9 @@ function EmptyArtifactPane() {
 function exportMarkdown(bundle: ArtifactBundle) {
   // Browsers can't easily PNG-export an SVG-tree without dependencies, so we
   // emit a copy-pasteable markdown summary for now. PNG is a follow-up.
-  const md = `# ${bundle.title}\n\n${bundle.summary}\n\n${bundle.narrative}\n`
+  const parts = [`# ${bundle.title}`, bundle.summary]
+  if (bundle.narrative) parts.push(bundle.narrative)
+  const md = parts.join('\n\n') + '\n'
   const blob = new Blob([md], { type: 'text/markdown' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')

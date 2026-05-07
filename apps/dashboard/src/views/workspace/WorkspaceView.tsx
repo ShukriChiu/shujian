@@ -5,7 +5,6 @@ import { Bot, ExternalLink, ShieldCheck, Sparkles } from 'lucide-react'
 import { ArtifactPane } from './ArtifactPane'
 import { WorkspaceChat } from './WorkspaceChat'
 import { CapabilityRenderer } from './CapabilityRenderer'
-import { useMockChat } from '@/views/agents/conversation/artifact/useMockChat'
 import { useCursorChat } from '@/lib/useCursorChat'
 import {
   serverPersonas,
@@ -23,9 +22,11 @@ import { useCountdown } from '@/lib/useCountdown'
 import { cn } from '@/lib/utils'
 
 /**
- * Anthropic-Artifacts inspired analytics workspace, now persona-aware.
+ * Anthropic-Artifacts inspired analytics workspace, persona-aware.
  *
- *   /workspace                       → mock chat + mock artifacts (demo)
+ *   /workspace                       → "pick an agent" placeholder
+ *   /workspace?agent=ag-…            → real Cursor chat + generic
+ *                                      tool-call artifact pane
  *   /workspace?agent=ag-…&persona=…  → real Cursor chat + persona's
  *                                      manifest-driven capabilities
  *
@@ -53,34 +54,38 @@ export function WorkspaceView() {
   if (agentId) {
     return <AgentOnlyWorkspace agentId={agentId} />
   }
-  return <MockWorkspace />
+  return <NoAgentPlaceholder />
 }
 
 /* -------------------------------------------------------------------------- */
-/* MODE A · mock workspace (no agent yet)                                      */
+/* MODE A · no agent selected                                                  */
 /* -------------------------------------------------------------------------- */
 
-function MockWorkspace() {
-  const chat = useMockChat()
+function NoAgentPlaceholder() {
   useEffect(() => {
     document.title = 'Workspace · Shujian'
   }, [])
-  const handleClose = useCallback((id: string) => chat.removeArtifact(id), [chat])
   return (
-    <div
-      className="grid h-full min-h-0 w-full"
-      style={{ gridTemplateColumns: 'minmax(380px, 0.45fr) minmax(0, 0.55fr)' }}
-    >
-      <div className="flex min-h-0 min-w-0 border-r border-line">
-        <WorkspaceChat chat={chat} />
-      </div>
-      <div className="min-h-0 min-w-0">
-        <ArtifactPane
-          artifacts={chat.artifacts}
-          activeId={chat.activeArtifactId}
-          onSelect={chat.selectArtifact}
-          onClose={handleClose}
-        />
+    <div className="flex h-full min-h-0 w-full items-center justify-center bg-surface/40 px-8 py-12">
+      <div className="max-w-md text-center">
+        <div className="relative mx-auto mb-5 h-12 w-12">
+          <div className="absolute inset-0 -z-10 animate-pulse rounded-full bg-accent/15 blur-xl" />
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-line bg-surface">
+            <Bot className="h-5 w-5 text-accent" />
+          </div>
+        </div>
+        <h2 className="text-[16px] font-semibold tracking-[-0.01em] text-ink">
+          先选一个 agent
+        </h2>
+        <p className="mt-1.5 text-[12.5px] leading-[1.6] text-ink-muted">
+          Workspace 会把当前 cursor agent 的对话和工具产物并排展开。
+        </p>
+        <Link
+          to="/agents"
+          className="btn-accent mt-5 inline-flex h-8 items-center gap-1.5 px-3 text-[12px]"
+        >
+          去 agents 列表
+        </Link>
       </div>
     </div>
   )

@@ -19,14 +19,10 @@ import {
 import { cn } from '@/lib/utils'
 import { Markdown } from '@/views/agents/conversation/Markdown'
 import type { AssistantBlock, Turn } from '@/views/agents/conversation/turns'
-import {
-  SEED_PROMPTS,
-  type UseMockChatReturn,
-} from '@/views/agents/conversation/artifact/useMockChat'
-import { ARTIFACTS } from '@/views/agents/conversation/artifact/mock-data'
+import type { WorkspaceChatHook } from '@/lib/useCursorChat'
 
 interface Props {
-  chat: UseMockChatReturn
+  chat: WorkspaceChatHook
   /** Notify parent so it can transition the artifact pane in. */
   onArtifactRequested?: () => void
 }
@@ -57,12 +53,7 @@ export function WorkspaceChat({ chat, onArtifactRequested }: Props) {
       <ChatHeader chat={chat} lastQuestion={lastQuestion} />
       <ScrollableThread
         turns={chat.turns}
-        onPickPrompt={submit}
         onArtifactClick={(id) => chat.selectArtifact(id)}
-        followups={
-          chat.turns.length > 0 ? deriveFollowups(chat.turns, chat.busy) : []
-        }
-        onPickFollowup={submit}
       />
       <Composer
         value={draft}
@@ -80,7 +71,7 @@ function ChatHeader({
   chat,
   lastQuestion,
 }: {
-  chat: UseMockChatReturn
+  chat: WorkspaceChatHook
   lastQuestion: string | null
 }) {
   return (
@@ -119,16 +110,10 @@ function ChatHeader({
 
 function ScrollableThread({
   turns,
-  onPickPrompt,
   onArtifactClick,
-  followups,
-  onPickFollowup,
 }: {
   turns: Turn[]
-  onPickPrompt: (text: string) => void
   onArtifactClick: (id: string) => void
-  followups: string[]
-  onPickFollowup: (text: string) => void
 }) {
   const ref = useRef<HTMLDivElement>(null)
   const [pinned, setPinned] = useState(true)
@@ -148,12 +133,12 @@ function ScrollableThread({
     const el = ref.current
     if (!el) return
     el.scrollTop = el.scrollHeight
-  }, [turns, pinned, followups.length])
+  }, [turns, pinned])
 
   if (turns.length === 0) {
     return (
       <div className="flex flex-1 items-center justify-center px-6 py-10">
-        <EmptyState onPick={onPickPrompt} />
+        <EmptyState />
       </div>
     )
   }
@@ -172,21 +157,6 @@ function ScrollableThread({
             </li>
           ))}
         </ol>
-        {followups.length > 0 && (
-          <div className="mt-5 flex flex-wrap gap-2 animate-fade-up">
-            {followups.map((f) => (
-              <button
-                key={f}
-                type="button"
-                onClick={() => onPickFollowup(f)}
-                className="group flex items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1.5 text-[12px] text-ink-muted transition-colors duration-150 ease-out-quart hover:border-accent/40 hover:bg-accent-tint hover:text-accent"
-              >
-                <ArrowUp className="h-3 w-3 -rotate-45" />
-                {f}
-              </button>
-            ))}
-          </div>
-        )}
         <div className="h-2" />
       </div>
       {!pinned && (
@@ -208,7 +178,7 @@ function ScrollableThread({
 
 /* ------------------------------- empty state ----------------------------- */
 
-function EmptyState({ onPick }: { onPick: (text: string) => void }) {
+function EmptyState() {
   return (
     <div className="max-w-md text-center">
       <div className="relative mx-auto mb-5 h-12 w-12">
@@ -218,26 +188,11 @@ function EmptyState({ onPick }: { onPick: (text: string) => void }) {
         </div>
       </div>
       <h2 className="text-[16px] font-semibold tracking-[-0.01em] text-ink">
-        问点关于业务的事
+        问点什么
       </h2>
       <p className="mt-1.5 text-[12.5px] leading-[1.6] text-ink-muted">
-        我会从 vaults 取数、做图、给建议。问完一个问题，可以接着追问员工层面、调整建议。
+        通过 cursor agent 取数、做图、给建议。每次工具调用都会在右侧画布上展开。
       </p>
-      <div className="mt-5 grid grid-cols-2 gap-2">
-        {SEED_PROMPTS.map((p) => (
-          <button
-            key={p.kind}
-            type="button"
-            onClick={() => onPick(p.label)}
-            className="group flex flex-col items-start gap-1 rounded-lg border border-line bg-surface px-3.5 py-3 text-left transition-all duration-200 ease-out-quart hover:-translate-y-px hover:border-accent/40 hover:bg-accent-tint"
-          >
-            <span className="text-[11px] font-mono uppercase tracking-[0.06em] text-ink-dim group-hover:text-accent">
-              {ARTIFACTS[p.kind].kind}
-            </span>
-            <span className="text-[13px] text-ink">{p.label}</span>
-          </button>
-        ))}
-      </div>
     </div>
   )
 }
@@ -360,7 +315,10 @@ const ToolCallRow = memo(function ToolCallRow({
 }) {
   const status = block.status
   const result = block.result as { kind?: string; summary?: string } | undefined
-  const artifactId = result?.kind ? `${result.kind}-q3` : null
+  // Mock artifacts use `${kind}-q3` ids; real cursor tool_calls use
+  // `tool-${callId}` ids set by useCursorChat. Try both so the "↗ open"
+  // affordance points at the right artifact in either mode.
+  const artifactId = result?.kind ? `${result.kind}-q3` : `tool-${block.callId}`
 
   return (
     <div className="flex flex-col gap-1 rounded-md border border-line bg-surface-2/60 px-3 py-2 text-[12px]">
@@ -377,7 +335,7 @@ const ToolCallRow = memo(function ToolCallRow({
         >
           <Database className="h-3 w-3" />
         </span>
-        <span className="font-mono text-ink">query_business</span>
+        <span className="font-mono text-ink">{block.name || 'tool'}</span>
         <span
           className={cn(
             'pill ml-auto text-[10px]',
@@ -399,14 +357,18 @@ const ToolCallRow = memo(function ToolCallRow({
         )}
       </div>
       <div className="pl-7 text-[11.5px] leading-[1.45] text-ink-muted">
-        {result?.summary ?? (
+        {result?.summary ? (
+          result.summary
+        ) : status === 'completed' ? (
+          summarizeToolResult(block.result)
+        ) : (
           <span className="inline-flex items-center gap-1.5 text-ink-dim">
             <span className="flex gap-0.5" aria-hidden>
               <span className="h-1 w-1 animate-thinking-dot rounded-full bg-ink-dim" />
               <span className="h-1 w-1 animate-thinking-dot rounded-full bg-ink-dim [animation-delay:120ms]" />
               <span className="h-1 w-1 animate-thinking-dot rounded-full bg-ink-dim [animation-delay:240ms]" />
             </span>
-            正在查询 vaults…
+            running…
           </span>
         )}
       </div>
@@ -493,16 +455,16 @@ function Composer({
   )
 }
 
-/* ------------------------------ followups -------------------------------- */
-
-function deriveFollowups(turns: Turn[], busy: boolean): string[] {
-  if (busy) return []
-  const last = turns[turns.length - 1]
-  if (!last || last.role !== 'assistant' || last.status !== 'done') return []
-  const tool = last.blocks.find((b) => b.kind === 'tool_call') as
-    | Extract<AssistantBlock, { kind: 'tool_call' }>
-    | undefined
-  const kind = (tool?.result as { kind?: keyof typeof ARTIFACTS } | undefined)?.kind
-  if (!kind) return []
-  return ARTIFACTS[kind].followups
+function summarizeToolResult(value: unknown): string {
+  if (value === null || value === undefined) return '(empty)'
+  if (typeof value === 'string') {
+    const oneLine = value.replace(/\s+/g, ' ').trim()
+    return oneLine.length > 80 ? oneLine.slice(0, 77) + '…' : oneLine
+  }
+  if (typeof value === 'object') {
+    const keys = Object.keys(value as Record<string, unknown>)
+    if (keys.length === 0) return '{}'
+    return `{ ${keys.slice(0, 4).join(', ')}${keys.length > 4 ? ', …' : ''} }`
+  }
+  return String(value)
 }

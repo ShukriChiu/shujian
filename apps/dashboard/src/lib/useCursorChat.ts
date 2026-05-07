@@ -1,10 +1,6 @@
 /**
- * Drop-in replacement for `useMockChat` that talks to a real Cursor
- * cloud agent through cursor-bridge.
- *
- * Public shape mirrors `UseMockChatReturn` so `WorkspaceChat` can use
- * either hook without branching. The two extra concerns this hook
- * handles vs. the mock:
+ * Streams a Cursor cloud agent through cursor-bridge and exposes a
+ * chat hook the workspace can render directly.
  *
  *   1. SSE wiring — startStreamingRun → EventSource → applyEvent.
  *      Falls back to the synchronous /messages call when the bridge
@@ -32,11 +28,23 @@ import {
   type AssistantBlock,
   type Turn,
 } from '@/views/agents/conversation/turns'
-import type { ArtifactBundle } from '@/views/agents/conversation/artifact/mock-data'
-import type { UseMockChatReturn } from '@/views/agents/conversation/artifact/useMockChat'
+import type { ArtifactBundle } from '@/views/agents/conversation/artifact/types'
 
 interface Options {
   agentId: string
+}
+
+/** Public shape consumed by `WorkspaceChat`. */
+export interface WorkspaceChatHook {
+  turns: Turn[]
+  busy: boolean
+  artifacts: ArtifactBundle[]
+  activeArtifactId: string | null
+  send: (prompt: string) => void
+  stop: () => void
+  selectArtifact: (id: string) => void
+  removeArtifact: (id: string) => void
+  reset: () => void
 }
 
 /** Best-effort detection: are we proxying the bridge through Vite? */
@@ -53,7 +61,7 @@ function localBridge(): boolean {
   }
 }
 
-export function useCursorChat({ agentId }: Options): UseMockChatReturn {
+export function useCursorChat({ agentId }: Options): WorkspaceChatHook {
   const [turns, setTurns] = useState<Turn[]>([])
   const [busy, setBusy] = useState(false)
   const [artifacts, setArtifacts] = useState<ArtifactBundle[]>([])
@@ -290,15 +298,11 @@ function toolCallToArtifact(
 
   return {
     id: `tool-${block.callId}`,
-    // ArtifactKind is a closed union in mock-data; pick the closest
-    // bucket so existing styling works. The artifact pane doesn't
-    // actually branch on `kind`, only on `spec`.
-    kind: 'staff',
-    title: `${block.name}`,
+    kind: 'tool',
+    title: block.name,
     summary,
     narrative: `工具调用 \`${block.name}\` 在 turn ${turnId} 完成。`,
     spec,
-    followups: [],
   }
 }
 
