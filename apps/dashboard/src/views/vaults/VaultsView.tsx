@@ -1,9 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
+  AlertTriangle,
+  Check,
+  ChevronRight,
   Eye,
   EyeOff,
+  FileUp,
   KeyRound,
+  Loader2,
   Plus,
   RefreshCw,
   ShieldAlert,
@@ -12,9 +17,15 @@ import {
   X,
 } from 'lucide-react'
 import {
+  buildPlan,
+  maskValue,
+  parseDotenv,
+  type PlanRow,
+} from '@/lib/dotenvParse'
+import {
   genVaultId,
   looksLikeSecretKey,
-  maskValue,
+  maskValue as maskLocalValue,
   removeVault,
   upsertVault,
   type Vault,
@@ -111,6 +122,7 @@ function ServerVaultsTab() {
   const [params, setParams] = useSearchParams()
   const selectedName = params.get('name')
   const newOpen = params.get('new') === '1'
+  const bulkOpen = params.get('bulk') === '1'
 
   const [secrets, setSecrets] = useState<ServerSecretMetadata[] | null>(null)
   const [kek, setKek] = useState<KekStatus | null>(null)
@@ -151,13 +163,22 @@ function ServerVaultsTab() {
   function openNew() {
     const next = new URLSearchParams(params)
     next.delete('name')
+    next.delete('bulk')
     next.set('new', '1')
+    setParams(next, { replace: true })
+  }
+  function openBulk() {
+    const next = new URLSearchParams(params)
+    next.delete('name')
+    next.delete('new')
+    next.set('bulk', '1')
     setParams(next, { replace: true })
   }
   function closeRail() {
     const next = new URLSearchParams(params)
     next.delete('name')
     next.delete('new')
+    next.delete('bulk')
     setParams(next, { replace: true })
   }
 
@@ -180,6 +201,14 @@ function ServerVaultsTab() {
               刷新
             </button>
             <button
+              onClick={openBulk}
+              disabled={!kek?.configured}
+              className="btn btn-ghost h-8 px-2 text-xs"
+              title={!kek?.configured ? 'KEK 未配置，无法加密写入' : '从 .env 文本批量录入'}
+            >
+              <FileUp className="h-3.5 w-3.5" /> 批量导入
+            </button>
+            <button
               onClick={openNew}
               disabled={!kek?.configured}
               className="btn btn-primary"
@@ -190,6 +219,16 @@ function ServerVaultsTab() {
           </>
         }
       />
+
+      {bulkOpen && kek?.configured && (
+        <BulkImportDialog
+          existingNames={new Set((secrets ?? []).map((s) => s.name))}
+          onClose={closeRail}
+          onImported={async () => {
+            await refresh()
+          }}
+        />
+      )}
 
       {loadErr && (
         <div className="mx-6 mb-3 flex items-start gap-2 rounded-md border border-bad/30 bg-bad/5 px-3 py-2 text-xs text-bad">
@@ -549,6 +588,324 @@ function ServerSecretEditor({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Bulk import dialog
+// ─────────────────────────────────────────────────────────────────────────────
+
+const SAMPLE_TEXT = `# 把 .env / 钉钉 webhook / R2 凭证 等粘贴到这里
+# 格式: KEY=value (支持 export / 引号 / 转义 / # 注释)
+ONION_API_KEY="sk-..."
+DATABASE_URL="postgresql://..."
+R2_SECRET_ACCESS_KEY="..."
+DINGTALK_BOT_CONFIGS="[{\\"name\\":\\"...\\",\\"webhook\\":\\"...\\"}]"
+`
+
+interface RowState {
+  /** Per-row submit state. */
+  status: 'idle' | 'busy' | 'ok' | 'fail'
+  message?: string
+}
+
+function BulkImportDialog({
+  existingNames,
+  onClose,
+  onImported,
+}: {
+  existingNames: ReadonlySet<string>
+  onClose: () => void
+  onImported: () => void | Promise<void>
+}) {
+  const [text, setText] = useState('')
+  const [prefix, setPrefix] = useState('onion.')
+  const [skipPublic, setSkipPublic] = useState(true)
+  const [overwriteExisting, setOverwriteExisting] = useState(true)
+  const [skipKeys, setSkipKeys] = useState<Set<string>>(new Set())
+  const [rowState, setRowState] = useState<Record<string, RowState>>({})
+  const [submitting, setSubmitting] = useState(false)
+
+  const allRows = useMemo(() => {
+    if (!text.trim()) return [] as PlanRow[]
+    const pairs = parseDotenv(text)
+    return buildPlan(pairs, { prefix, existingNames })
+  }, [text, prefix, existingNames])
+
+  // Rows we'll actually write — public-skipped if checkbox set, user-skipped, or
+  // existing-row + overwrite=false.
+  const eligibleRows = useMemo(
+    () =>
+      allRows.filter((r) => {
+        if (skipKeys.has(r.srcKey)) return false
+        if (skipPublic && r.isPublic) return false
+        if (r.exists && !overwriteExisting) return false
+        return true
+      }),
+    [allRows, skipKeys, skipPublic, overwriteExisting],
+  )
+
+  function toggleSkip(key: string) {
+    setSkipKeys((cur) => {
+      const next = new Set(cur)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
+  async function loadFile(f: File) {
+    const t = await f.text()
+    setText(t)
+  }
+
+  async function submit() {
+    if (eligibleRows.length === 0) return
+    setSubmitting(true)
+    setRowState((s) => {
+      const next = { ...s }
+      eligibleRows.forEach((r) => {
+        next[r.name] = { status: 'busy' }
+      })
+      return next
+    })
+
+    // Sequential is fine here — 14 secrets at ~200ms each = ~3s, and the
+    // visible per-row progress is more useful than a small parallel speedup.
+    let ok = 0
+    let fail = 0
+    for (const r of eligibleRows) {
+      try {
+        await serverVaults.upsertSecret({
+          name: r.name,
+          value: r.value,
+          kind: r.kind,
+          description: 'imported via dashboard bulk',
+        })
+        setRowState((s) => ({ ...s, [r.name]: { status: 'ok' } }))
+        ok += 1
+      } catch (e) {
+        const msg = e instanceof BackendError ? e.message : String(e)
+        setRowState((s) => ({ ...s, [r.name]: { status: 'fail', message: msg } }))
+        fail += 1
+      }
+    }
+    setSubmitting(false)
+    if (ok > 0) await onImported()
+    if (fail === 0) {
+      // Auto-close after a brief moment so the user sees the green ticks.
+      setTimeout(onClose, 700)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4 py-6 backdrop-blur-sm">
+      <div className="flex max-h-full w-full max-w-5xl flex-col overflow-hidden rounded-lg border border-line bg-surface shadow-xl">
+        <header className="flex items-center justify-between border-b border-line px-5 py-3">
+          <div className="flex items-center gap-2">
+            <FileUp className="h-4 w-4 text-accent" />
+            <span className="text-sm font-medium text-ink">批量导入 Secrets</span>
+            <span className="text-xs text-ink-dim">
+              · 解析 .env 文本，预览后一次性加密入库
+            </span>
+          </div>
+          <button onClick={onClose} className="btn btn-ghost h-7 w-7 px-0" aria-label="Close">
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </header>
+
+        <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[420px_minmax(0,1fr)]">
+          {/* Left: paste + options */}
+          <div className="flex min-h-0 flex-col border-b border-line lg:border-b-0 lg:border-r">
+            <div className="flex items-center justify-between gap-2 border-b border-line px-4 py-2 text-xs">
+              <span className="font-medium text-ink-muted">.env 文本</span>
+              <label className="btn btn-ghost h-7 cursor-pointer px-2 text-xs">
+                <FileUp className="h-3 w-3" /> 选文件
+                <input
+                  type="file"
+                  className="sr-only"
+                  accept=".env,.txt,text/plain"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0]
+                    if (f) loadFile(f)
+                    e.target.value = ''
+                  }}
+                />
+              </label>
+            </div>
+            <textarea
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder={SAMPLE_TEXT}
+              spellCheck={false}
+              className="min-h-[260px] flex-1 resize-none border-0 bg-transparent p-4 font-mono text-[12px] leading-5 text-ink outline-none placeholder:text-ink-dim/60"
+            />
+            <div className="space-y-2 border-t border-line px-4 py-3 text-xs">
+              <Field label="名称前缀" hint="lowercase + 末尾点（onion. / bridge. / shujian.）">
+                <input
+                  className="input h-8 font-mono"
+                  value={prefix}
+                  onChange={(e) => setPrefix(e.target.value.toLowerCase())}
+                  placeholder="onion."
+                />
+              </Field>
+              <label className="flex cursor-pointer items-center gap-2 text-ink-muted">
+                <input
+                  type="checkbox"
+                  checked={skipPublic}
+                  onChange={(e) => setSkipPublic(e.target.checked)}
+                />
+                跳过公开常量
+                <span className="text-ink-dim">
+                  （*_BASE_URL / *_PUBLIC_URL / 普通 https URL）
+                </span>
+              </label>
+              <label className="flex cursor-pointer items-center gap-2 text-ink-muted">
+                <input
+                  type="checkbox"
+                  checked={overwriteExisting}
+                  onChange={(e) => setOverwriteExisting(e.target.checked)}
+                />
+                覆盖已存在的同名 secret
+              </label>
+            </div>
+          </div>
+
+          {/* Right: preview table */}
+          <div className="flex min-h-0 flex-col">
+            <div className="flex items-center justify-between border-b border-line px-4 py-2 text-xs">
+              <span className="font-medium text-ink-muted">
+                解析预览
+                <span className="ml-2 font-mono text-ink-dim">
+                  parsed {allRows.length} · 待写入{' '}
+                  <span className="text-ink">{eligibleRows.length}</span>
+                </span>
+              </span>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto scroll-thin">
+              {allRows.length === 0 ? (
+                <div className="px-4 py-8 text-center text-xs text-ink-dim">
+                  在左侧粘贴 .env 文本即可看到预览
+                </div>
+              ) : (
+                <table className="w-full text-[12px]">
+                  <thead className="sticky top-0 bg-surface text-[11px] text-ink-dim">
+                    <tr className="border-b border-line">
+                      <th className="px-3 py-2 text-left font-normal">写</th>
+                      <th className="px-3 py-2 text-left font-normal">源 KEY</th>
+                      <th className="px-3 py-2 text-left font-normal">→ 名称</th>
+                      <th className="px-3 py-2 text-left font-normal">kind</th>
+                      <th className="px-3 py-2 text-left font-normal">值</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {allRows.map((r) => {
+                      const state = rowState[r.name]?.status ?? 'idle'
+                      const userSkip = skipKeys.has(r.srcKey)
+                      const publicSkip = skipPublic && r.isPublic
+                      const collisionSkip = r.exists && !overwriteExisting
+                      const skipped = userSkip || publicSkip || collisionSkip
+                      return (
+                        <tr
+                          key={r.srcKey}
+                          className={cn(
+                            'border-b border-line/60',
+                            skipped && 'opacity-50',
+                          )}
+                        >
+                          <td className="px-3 py-2">
+                            <input
+                              type="checkbox"
+                              checked={!userSkip}
+                              onChange={() => toggleSkip(r.srcKey)}
+                              disabled={submitting}
+                              title={
+                                publicSkip
+                                  ? '默认按"公开常量"跳过'
+                                  : collisionSkip
+                                    ? '已存在，未勾选覆盖'
+                                    : '取消勾选则跳过此条'
+                              }
+                            />
+                          </td>
+                          <td className="px-3 py-2 font-mono text-ink">{r.srcKey}</td>
+                          <td className="px-3 py-2">
+                            <div className="flex items-center gap-1.5 font-mono text-ink-muted">
+                              <ChevronRight className="h-3 w-3 text-ink-dim" />
+                              {r.name}
+                              {r.exists && (
+                                <span className="rounded bg-warn/10 px-1 text-[10px] text-warn">
+                                  已存在
+                                </span>
+                              )}
+                              {r.isPublic && skipPublic && (
+                                <span className="rounded bg-ink-dim/10 px-1 text-[10px] text-ink-dim">
+                                  public
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-3 py-2 font-mono text-[11px] text-ink-muted">
+                            {r.kind}
+                          </td>
+                          <td className="px-3 py-2">
+                            <div className="flex items-center gap-2">
+                              <code className="max-w-[260px] truncate text-[11px] text-ink-dim">
+                                {maskValue(r.value)}
+                              </code>
+                              <RowStatusIcon state={state} message={rowState[r.name]?.message} />
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <footer className="flex items-center justify-between border-t border-line bg-surface px-5 py-3 text-xs">
+          <div className="flex items-center gap-3 text-ink-dim">
+            <KeyRound className="h-3 w-3" />
+            <span>
+              所有写入会被当前 KEK 加密；plaintext 不会被列表 / 取详 接口返回。
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={onClose} className="btn btn-ghost" disabled={submitting}>
+              取消
+            </button>
+            <button
+              onClick={submit}
+              disabled={submitting || eligibleRows.length === 0}
+              className="btn btn-primary"
+            >
+              {submitting ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <FileUp className="h-3.5 w-3.5" />
+              )}
+              导入 {eligibleRows.length} 条
+            </button>
+          </div>
+        </footer>
+      </div>
+    </div>
+  )
+}
+
+function RowStatusIcon({ state, message }: { state: RowState['status']; message?: string }) {
+  if (state === 'busy') return <Loader2 className="h-3 w-3 animate-spin text-ink-dim" />
+  if (state === 'ok') return <Check className="h-3 w-3 text-good" />
+  if (state === 'fail')
+    return (
+      <span title={message} className="flex items-center gap-1 text-bad">
+        <AlertTriangle className="h-3 w-3" />
+        <span className="text-[10px]">fail</span>
+      </span>
+    )
+  return null
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Local tab (legacy)
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -827,7 +1184,7 @@ function LocalVaultEditor({
                   type={p.reveal ? 'text' : 'password'}
                   value={p.v}
                   onChange={(e) => setPair(i, { v: e.target.value })}
-                  placeholder={looksLikeSecretKey(p.k) ? maskValue(p.v) || '••••' : 'value'}
+                  placeholder={looksLikeSecretKey(p.k) ? maskLocalValue(p.v) || '••••' : 'value'}
                 />
                 <button
                   onClick={() => setPair(i, { reveal: !p.reveal })}
