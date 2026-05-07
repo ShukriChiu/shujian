@@ -34,10 +34,14 @@ export const Frame = memo(function Frame({
 }) {
   return (
     <section className="flex h-full flex-col rounded-xl border border-line bg-surface">
-      <header className="flex items-start justify-between gap-4 border-b border-line px-5 py-4">
+      <header className="relative flex items-start justify-between gap-4 border-b border-line px-6 pb-5 pt-5">
+        <div
+          aria-hidden
+          className="absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-accent/40 to-transparent"
+        />
         <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <h2 className="truncate text-[15px] font-semibold tracking-[-0.01em] text-ink">
+          <div className="flex items-center gap-2.5">
+            <h2 className="truncate text-[18px] font-semibold tracking-[-0.018em] text-ink">
               {props.title}
             </h2>
             {props.period && (
@@ -47,11 +51,13 @@ export const Frame = memo(function Frame({
             )}
           </div>
           {props.subtitle && (
-            <p className="mt-1 text-[12.5px] leading-[1.5] text-ink-muted">{props.subtitle}</p>
+            <p className="mt-1.5 max-w-[60ch] text-[12.5px] leading-[1.55] text-ink-muted">
+              {props.subtitle}
+            </p>
           )}
         </div>
       </header>
-      <div className="flex-1 overflow-y-auto scroll-thin px-5 py-4">{children}</div>
+      <div className="scroll-thin flex-1 overflow-y-auto px-6 py-5">{children}</div>
     </section>
   )
 })
@@ -294,7 +300,9 @@ export const LineChart = memo(function LineChart({
             <Legend
               iconType="circle"
               iconSize={8}
-              wrapperStyle={{ fontSize: 11, color: ink, paddingTop: 8 }}
+              verticalAlign="top"
+              align="right"
+              wrapperStyle={{ fontSize: 11, color: ink, paddingBottom: 4 }}
             />
           )}
           {props.series.map((s, i) => {
@@ -399,7 +407,9 @@ export const BarChart = memo(function BarChart({
             <Legend
               iconType="circle"
               iconSize={8}
-              wrapperStyle={{ fontSize: 11, color: ink, paddingTop: 8 }}
+              verticalAlign="top"
+              align="right"
+              wrapperStyle={{ fontSize: 11, color: ink, paddingBottom: 4 }}
             />
           )}
           {props.series.map((s, i) => (

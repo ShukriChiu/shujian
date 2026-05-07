@@ -151,36 +151,48 @@ function ToolbarButton({
 
 function EmptyArtifactPane() {
   return (
-    <section className="flex h-full min-h-0 flex-col items-center justify-center bg-bg px-8 py-12 text-center">
+    <section className="relative flex h-full min-h-0 flex-col items-center justify-center overflow-hidden bg-bg px-8 py-12 text-center">
+      {/* radial glow pinned slightly above center */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute left-1/2 top-[34%] -z-10 h-72 w-72 -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent/10 blur-3xl"
+      />
       <div className="relative mb-5">
-        <div className="absolute inset-0 -z-10 animate-pulse rounded-full bg-accent/10 blur-2xl" />
-        <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-line bg-surface">
+        <div
+          aria-hidden
+          className="absolute inset-0 -z-10 rounded-full bg-accent/15 blur-xl"
+          style={{ animation: 'pulse 3.6s ease-in-out infinite' }}
+        />
+        <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-line bg-surface shadow-[0_12px_32px_-16px_oklch(var(--accent-l)_var(--accent-c)_var(--accent-h)/0.4)]">
           <Database className="h-6 w-6 text-accent" />
         </div>
       </div>
-      <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-ink">
-        画布等你提问
-      </h2>
+      <h2 className="text-[16px] font-semibold tracking-[-0.012em] text-ink">画布等你提问</h2>
       <p className="mt-2 max-w-md text-[12.5px] leading-[1.6] text-ink-muted">
-        在左侧问任何关于业务的问题，我会从 vaults 取数、生成图表，并在这里铺开。
+        在左侧问任何关于业务的问题，我从 vaults 取数、生成图表、给建议——
         每个回答都是一张可继续追问的画布。
       </p>
-      <div className="mt-6 flex flex-col items-start gap-1.5 text-[11.5px] text-ink-dim">
-        <CueLine label="Q3 营收情况" hint="→ 多指标 + 营收/退款双线" />
-        <CueLine label="退款主要原因" hint="→ 横向条形 + 高退款班次表" />
-        <CueLine label="未消课时风险" hint="→ 堆叠柱状 + 班次负债表" />
-        <CueLine label="员工绩效" hint="→ KPI 表 + 续费/退款双柱" />
-      </div>
+      <ul className="mt-6 flex flex-col items-stretch gap-1 text-[11.5px]">
+        {[
+          { label: 'Q3 营收情况', hint: '多指标 + 营收/退款双线' },
+          { label: '退款主要原因', hint: '横向条形 + 高退款班次表' },
+          { label: '未消课时风险', hint: '堆叠柱状 + 班次负债表' },
+          { label: '员工绩效', hint: 'KPI 表 + 续费/退款双柱' },
+        ].map((c, i) => (
+          <li
+            key={c.label}
+            className="grid animate-fade-up grid-cols-[160px_auto] items-center gap-3 font-mono opacity-0"
+            style={{ animationDelay: `${120 + i * 60}ms` }}
+          >
+            <span className="text-right text-ink">{c.label}</span>
+            <span className="flex items-center gap-2 text-left text-ink-dim">
+              <span className="h-px w-4 bg-line-strong" aria-hidden />
+              {c.hint}
+            </span>
+          </li>
+        ))}
+      </ul>
     </section>
-  )
-}
-
-function CueLine({ label, hint }: { label: string; hint: string }) {
-  return (
-    <div className="flex items-center gap-3 font-mono text-[11.5px]">
-      <span className="text-ink">{label}</span>
-      <span className="text-ink-dim">{hint}</span>
-    </div>
   )
 }
 

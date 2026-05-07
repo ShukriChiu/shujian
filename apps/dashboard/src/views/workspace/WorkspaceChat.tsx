@@ -2,6 +2,7 @@ import {
   memo,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type FormEvent,
@@ -33,30 +34,40 @@ interface Props {
 export function WorkspaceChat({ chat, onArtifactRequested }: Props) {
   const [draft, setDraft] = useState('')
 
+  const submit = (text: string) => {
+    if (!text.trim() || chat.busy) return
+    chat.send(text)
+    onArtifactRequested?.()
+    setDraft('')
+  }
+
+  // The last user question doubles as a topic anchor at the top of the
+  // thread once the conversation grows past the viewport. Cheaper than
+  // tracking scroll position for an autohide.
+  const lastQuestion = useMemo(() => {
+    for (let i = chat.turns.length - 1; i >= 0; i--) {
+      const t = chat.turns[i]
+      if (t.role === 'user') return t.text
+    }
+    return null
+  }, [chat.turns])
+
   return (
     <div className="flex h-full min-h-0 flex-col bg-surface/40">
-      <ChatHeader chat={chat} />
+      <ChatHeader chat={chat} lastQuestion={lastQuestion} />
       <ScrollableThread
         turns={chat.turns}
-        onPickPrompt={(text) => {
-          setDraft(text)
-        }}
+        onPickPrompt={submit}
         onArtifactClick={(id) => chat.selectArtifact(id)}
         followups={
           chat.turns.length > 0 ? deriveFollowups(chat.turns, chat.busy) : []
         }
-        onPickFollowup={(text) => {
-          setDraft(text)
-        }}
+        onPickFollowup={submit}
       />
       <Composer
         value={draft}
         onChange={setDraft}
-        onSubmit={(text) => {
-          chat.send(text)
-          onArtifactRequested?.()
-          setDraft('')
-        }}
+        onSubmit={submit}
         onStop={chat.stop}
         busy={chat.busy}
         emptyHint={chat.turns.length === 0}
@@ -65,24 +76,40 @@ export function WorkspaceChat({ chat, onArtifactRequested }: Props) {
   )
 }
 
-function ChatHeader({ chat }: { chat: UseMockChatReturn }) {
+function ChatHeader({
+  chat,
+  lastQuestion,
+}: {
+  chat: UseMockChatReturn
+  lastQuestion: string | null
+}) {
   return (
-    <header className="flex items-center justify-between border-b border-line bg-surface/60 px-4 py-2.5 backdrop-blur">
-      <div className="flex items-center gap-2 text-[12px]">
-        <span className="flex h-5 w-5 items-center justify-center rounded-md bg-accent/15 text-accent">
-          <Sparkles className="h-3 w-3" />
-        </span>
-        <span className="font-semibold tracking-[-0.005em] text-ink">业务分析</span>
-        <span className="pill pill-muted text-[10px] font-mono normal-case">vaults · live</span>
+    <header className="flex shrink-0 flex-col gap-1.5 border-b border-line bg-surface/60 px-4 pb-2.5 pt-2.5 backdrop-blur">
+      <div className="flex items-center justify-between text-[12px]">
+        <div className="flex items-center gap-2">
+          <span className="flex h-5 w-5 items-center justify-center rounded-md bg-accent/15 text-accent">
+            <Sparkles className="h-3 w-3" />
+          </span>
+          <span className="font-semibold tracking-[-0.005em] text-ink">业务分析</span>
+          <span className="pill pill-muted text-[10px] font-mono normal-case">vaults · live</span>
+        </div>
+        {chat.turns.length > 0 && (
+          <button
+            type="button"
+            onClick={chat.reset}
+            className="text-[11px] font-mono uppercase tracking-[0.06em] text-ink-dim transition-colors hover:text-ink-muted"
+          >
+            new thread
+          </button>
+        )}
       </div>
-      {chat.turns.length > 0 && (
-        <button
-          type="button"
-          onClick={chat.reset}
-          className="text-[11px] font-mono uppercase tracking-[0.06em] text-ink-dim transition-colors hover:text-ink-muted"
-        >
-          new thread
-        </button>
+      {lastQuestion && (
+        <div className="flex items-center gap-1.5 text-[11.5px]" title={lastQuestion}>
+          <span className="font-mono text-[10px] uppercase tracking-[0.06em] text-ink-dim">
+            topic
+          </span>
+          <span className="truncate text-ink-muted">{lastQuestion}</span>
+        </div>
       )}
     </header>
   )
@@ -239,25 +266,21 @@ function AssistantTurn({
 }) {
   const streaming = t.status === 'streaming'
   return (
-    <div className="flex animate-block-in flex-col gap-2.5">
-      <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.08em] text-ink-dim">
-        <span
-          className={cn(
-            'inline-flex h-4 w-4 items-center justify-center rounded-md',
-            streaming ? 'bg-accent/15 text-accent' : 'bg-surface-2 text-ink-muted',
+    <div className="flex animate-block-in flex-col gap-2">
+      {(streaming || t.status === 'cancelled' || t.durationMs != null) && (
+        <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-[0.08em] text-ink-dim">
+          {streaming ? (
+            <span className="inline-flex h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
+          ) : (
+            <span className="inline-flex h-1.5 w-1.5 rounded-full bg-ok/60" />
           )}
-        >
-          <Sparkles className="h-2.5 w-2.5" />
-        </span>
-        <span>洋葱业务分析</span>
-        {streaming && t.lifecycle && t.lifecycle !== 'RUNNING' && (
-          <span className="text-ink-muted">· {t.lifecycle.toLowerCase()}</span>
-        )}
-        {!streaming && t.durationMs != null && (
-          <span className="font-mono">· {(t.durationMs / 1000).toFixed(1)}s</span>
-        )}
-        {t.status === 'cancelled' && <span className="pill pill-warn ml-auto">cancelled</span>}
-      </div>
+          <span>{streaming ? 'streaming' : 'reply'}</span>
+          {!streaming && t.durationMs != null && (
+            <span className="text-ink-dim">· {(t.durationMs / 1000).toFixed(1)}s</span>
+          )}
+          {t.status === 'cancelled' && <span className="pill pill-warn ml-auto">cancelled</span>}
+        </div>
+      )}
       {t.blocks.length === 0 && streaming && <ThinkingPulse />}
       {t.blocks.map((b, i) => (
         <BlockView
@@ -340,43 +363,53 @@ const ToolCallRow = memo(function ToolCallRow({
   const artifactId = result?.kind ? `${result.kind}-q3` : null
 
   return (
-    <div className="flex items-center gap-2.5 rounded-md border border-line bg-surface-2/60 px-3 py-2 text-[12px]">
-      <span
-        className={cn(
-          'flex h-5 w-5 items-center justify-center rounded',
-          status === 'running'
-            ? 'bg-accent/15 text-accent'
-            : status === 'completed'
-              ? 'bg-ok/15 text-ok'
-              : 'bg-bad/15 text-bad',
-        )}
-      >
-        <Database className="h-3 w-3" />
-      </span>
-      <span className="font-mono text-ink">query_business</span>
-      <span className="hidden text-ink-muted sm:inline">·</span>
-      <span className="hidden truncate text-ink-muted sm:inline">
-        {result?.summary ?? '正在查询 vaults…'}
-      </span>
-      <span
-        className={cn(
-          'pill ml-auto text-[10px]',
-          status === 'running' && 'pill-accent',
-          status === 'completed' && 'pill-ok',
-          status === 'error' && 'pill-bad',
-        )}
-      >
-        {status}
-      </span>
-      {artifactId && status === 'completed' && (
-        <button
-          type="button"
-          onClick={() => onArtifactClick(artifactId)}
-          className="text-[11px] font-mono uppercase tracking-[0.06em] text-accent transition-colors hover:text-accent-hi"
+    <div className="flex flex-col gap-1 rounded-md border border-line bg-surface-2/60 px-3 py-2 text-[12px]">
+      <div className="flex items-center gap-2">
+        <span
+          className={cn(
+            'flex h-5 w-5 items-center justify-center rounded',
+            status === 'running'
+              ? 'bg-accent/15 text-accent'
+              : status === 'completed'
+                ? 'bg-ok/15 text-ok'
+                : 'bg-bad/15 text-bad',
+          )}
         >
-          ↗ open
-        </button>
-      )}
+          <Database className="h-3 w-3" />
+        </span>
+        <span className="font-mono text-ink">query_business</span>
+        <span
+          className={cn(
+            'pill ml-auto text-[10px]',
+            status === 'running' && 'pill-accent',
+            status === 'completed' && 'pill-ok',
+            status === 'error' && 'pill-bad',
+          )}
+        >
+          {status}
+        </span>
+        {artifactId && status === 'completed' && (
+          <button
+            type="button"
+            onClick={() => onArtifactClick(artifactId)}
+            className="text-[11px] font-mono uppercase tracking-[0.06em] text-accent transition-colors hover:text-accent-hi"
+          >
+            ↗ open
+          </button>
+        )}
+      </div>
+      <div className="pl-7 text-[11.5px] leading-[1.45] text-ink-muted">
+        {result?.summary ?? (
+          <span className="inline-flex items-center gap-1.5 text-ink-dim">
+            <span className="flex gap-0.5" aria-hidden>
+              <span className="h-1 w-1 animate-thinking-dot rounded-full bg-ink-dim" />
+              <span className="h-1 w-1 animate-thinking-dot rounded-full bg-ink-dim [animation-delay:120ms]" />
+              <span className="h-1 w-1 animate-thinking-dot rounded-full bg-ink-dim [animation-delay:240ms]" />
+            </span>
+            正在查询 vaults…
+          </span>
+        )}
+      </div>
     </div>
   )
 })
