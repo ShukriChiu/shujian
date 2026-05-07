@@ -16,5 +16,6 @@ pub mod crypto;
 pub mod handlers;
 pub mod kek;
 pub mod models;
+pub mod onion_client;
 
 pub use kek::KekProvider;

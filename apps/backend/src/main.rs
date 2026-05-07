@@ -121,7 +121,32 @@ fn persona_routes() -> Router<AppState> {
     use vault::handlers as v;
     Router::new()
         .route("/", post(v::upsert_persona).get(v::list_personas))
-        .route("/{slug}", delete(v::delete_persona))
+        // Audit log of every issuance. Tenant-scoped; supports
+        // ?persona_slug=... and ?limit=N (default 100, max 500).
+        .route("/issuances", get(v::list_issuances))
+        // Manual revoke: the dashboard's "stop this run" button. Calls
+        // onion to invalidate every JWT minted under this issuance, then
+        // marks the row revoked_at = now().
+        .route("/issuances/{id}/revoke", post(v::revoke_issuance))
+        // After the dashboard launches a Cursor agent with the env we
+        // issued, it comes back here to record the agent_id/run_id so
+        // the audit log links audit ↔ run.
+        .route(
+            "/issuances/{id}/record-launch",
+            post(v::record_launch),
+        )
+        // Per-persona endpoints. Note the order: /:slug must come AFTER
+        // the literal "issuances" routes above — axum matches in order
+        // and "issuances" would otherwise be interpreted as a slug.
+        .route("/{slug}", get(v::get_persona).delete(v::delete_persona))
+        // Preview shows what env vars *would* be issued, with values
+        // masked by default. ?reveal=true mints real JWTs and returns
+        // plaintext — used by the wizard's final-confirm step.
+        .route("/{slug}/preview-env", get(v::preview_persona_env))
+        // The launch endpoint: resolves all scopes, decrypts secrets,
+        // mints onion JWTs, writes the audit row, returns the env to
+        // hand off to cursor-bridge.
+        .route("/{slug}/issue", post(v::issue_persona))
 }
 
 fn build_cors(cfg: &Config) -> CorsLayer {

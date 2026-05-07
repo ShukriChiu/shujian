@@ -1,0 +1,27 @@
+# Onion-JWT scope: mints a short-lived JWT signed by onion-agent that
+# carries the boss-analyst shadow's identity.
+#
+# Wire-shape inside onion-agent:
+#   Authorization: Bearer <jwt>
+#   jwt.kind            = "ai_persona"
+#   jwt.operator_id     = ef17ff19-...                        ← shadow employee
+#   jwt.persona_id      = <agent_personas.id>                 ← filled at issue
+#   jwt.scope_id        = <vault_scopes.id>                   ← filled at issue
+#   jwt.readonly        = true
+#
+# `readonly = true` makes onion-agent's `verify_persona_jwt` reject any
+# non-GET request (or any explicit "is_write" route), so even if the
+# persona accidentally calls a write endpoint, the server says no.
+
+name: onion.readonly_business
+description: Short-lived readonly JWT for AI persona to query onion-agent.
+
+# Convenience UI pointer; not enforced.
+primary_operator_ref_key: onion.boss_analyst
+
+bindings:
+  - kind: onion_jwt
+    env: ONION_API_TOKEN
+    operator_ref_key: onion.boss_analyst
+    ttl_seconds: 3600
+    readonly: true

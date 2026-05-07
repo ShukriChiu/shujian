@@ -90,6 +90,13 @@ pub struct UpsertPersonaBody {
     pub allowed_scopes: Vec<Uuid>,
     pub cursor_settings: serde_json::Value,
     pub domain: Option<String>,
+    /// PERSONA_SPEC.md version. Defaults to "1.0" if omitted.
+    #[serde(default)]
+    pub spec_version: Option<String>,
+    /// Opaque manifest of UI surfaces (kpi_grid / line_chart / etc.)
+    /// the dashboard renders. Backend stores verbatim; never inspects.
+    #[serde(default)]
+    pub capabilities: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
@@ -103,14 +110,15 @@ pub struct Persona {
     pub allowed_scopes: Vec<Uuid>,
     pub cursor_settings: serde_json::Value,
     pub domain: Option<String>,
+    pub spec_version: String,
+    /// Opaque to the backend — see personas/PERSONA_SPEC.md.
+    pub capabilities: serde_json::Value,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
 
 /// Read shape for `vault_issuance_log`. Surfaced via the audit dashboard
-/// and the persona launch endpoint; constructed by sqlx in P3+, so it's
-/// `#[allow(dead_code)]` until then.
-#[allow(dead_code)]
+/// and the persona launch endpoint.
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct IssuanceLogRow {
     pub id: Uuid,
@@ -123,6 +131,8 @@ pub struct IssuanceLogRow {
     pub scope_ids: Vec<Uuid>,
     pub env_keys: Vec<String>,
     pub onion_jti: Option<String>,
+    pub onion_jtis: Vec<String>,
+    pub metadata: serde_json::Value,
     pub expires_at: Option<DateTime<Utc>>,
     pub revoked_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
@@ -136,4 +146,99 @@ pub struct KekStatus {
     pub active_version: Option<i32>,
     pub fingerprint: Option<String>,
     pub source: String,
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Persona resolution / launch
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// One row in the resolved env. Mirrors a single binding after it's been
+/// turned into an actual env var. Always returned for `preview-env`; for
+/// `issue` the `value` field is populated, otherwise it's masked.
+#[derive(Debug, Serialize)]
+pub struct ResolvedEnvVar {
+    /// The env var name (e.g. `ONION_API_TOKEN`).
+    pub env: String,
+    /// Which kind of binding produced it.
+    pub kind: String,
+    /// The actual value — only set when the caller asked for it (issue mode).
+    /// Always None in preview mode so the dashboard can't accidentally leak.
+    pub value: Option<String>,
+    /// Length of the resolved value in bytes; useful for the preview UI to
+    /// show "[redacted, 64 chars]".
+    pub value_len: usize,
+    /// For `passthrough`: which secret was decrypted.
+    pub secret_name: Option<String>,
+    /// For `onion_jwt`: the operator (display name).
+    pub operator_name: Option<String>,
+    /// For `onion_jwt`: TTL the JWT was minted with (or would be).
+    pub ttl_seconds: Option<i64>,
+    /// For `onion_jwt`: jti of the minted JWT (issue mode only).
+    pub jti: Option<String>,
+    /// For `onion_jwt`: unix expiry of the JWT (issue mode only).
+    pub expires_at: Option<f64>,
+    /// For `onion_jwt`: whether the binding is readonly.
+    pub readonly: Option<bool>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PersonaPreview {
+    pub persona: Persona,
+    pub env: Vec<ResolvedEnvVar>,
+    /// Sum of value bytes, useful for "this much will be injected".
+    pub total_value_bytes: usize,
+    /// Cursor settings parsed out for the wizard's preview pane.
+    pub cursor_settings: serde_json::Value,
+    /// True if every binding resolved successfully. Errors are reported
+    /// per-row in `errors`.
+    pub ok: bool,
+    pub errors: Vec<String>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+pub struct PreviewEnvQuery {
+    /// `reveal=true` actually mints JWTs and decrypts secrets. **This is
+    /// the only path that surfaces plaintext in the response.** Used by
+    /// the launch wizard's final-confirm step and by the workspace probe.
+    #[serde(default)]
+    pub reveal: bool,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct IssuePersonaBody {
+    /// Optional bridge label (e.g. "mac-mini-studio") — recorded in the
+    /// issuance log. Free-form.
+    pub bridge_name: Option<String>,
+    /// Optional cursor agent id (set by dashboard once it actually launched).
+    /// Most callers will issue → launch → then come back and call
+    /// `record_launch` to fill these in.
+    pub cursor_agent_id: Option<String>,
+    pub cursor_run_id: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct IssuanceResponse {
+    /// Row id in `vault_issuance_log`. Use this to revoke later.
+    pub id: Uuid,
+    pub persona_id: Uuid,
+    pub env: Vec<ResolvedEnvVar>,
+    pub env_keys: Vec<String>,
+    pub scope_ids: Vec<Uuid>,
+    /// Earliest expires_at across all minted JWTs. Use this to drive the
+    /// dashboard's "x minutes left" countdown.
+    pub min_expires_at: Option<f64>,
+    pub jtis: Vec<String>,
+    pub cursor_settings: serde_json::Value,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RecordLaunchBody {
+    pub bridge_name: Option<String>,
+    pub cursor_agent_id: String,
+    pub cursor_run_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+pub struct RevokeIssuanceBody {
+    pub reason: Option<String>,
 }

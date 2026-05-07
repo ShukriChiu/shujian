@@ -1,0 +1,20 @@
+# Operator-ref spec.
+#
+# An operator_ref says "this AI persona, when it talks to onion-agent, is
+# acting as employees row X". Shadow operators (is_shadow=true) are
+# synthetic AI employees we created in onion-agent ahead of time so the
+# audit trail is unambiguous (no human is on the hook for a bot's queries).
+#
+# This particular row points at the boss-analyst shadow we INSERTed into
+# onion's employees table earlier:
+#   id   = ef17ff19-101a-4d97-a460-7d7776e5abfc
+#   name = AI·老板分析师
+#   persona_role = analyst_readonly
+#   permissions  = full-brand readonly (granted via onion's permissions table)
+
+key: onion.boss_analyst         # local id used by scope YAMLs to point here
+system: onion
+operator_id: ef17ff19-101a-4d97-a460-7d7776e5abfc
+operator_name: AI·老板分析师
+is_shadow: true
+role_hint: analyst_readonly

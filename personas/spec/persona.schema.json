@@ -1,0 +1,194 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://shujian.art/personas/spec/persona.schema.json",
+  "title": "Persona v1",
+  "description": "Cross-service contract for an AI persona. See PERSONA_SPEC.md.",
+  "type": "object",
+  "required": [
+    "spec_version",
+    "slug",
+    "display_name",
+    "system_prompt",
+    "allowed_scopes",
+    "cursor_settings"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "spec_version": {
+      "type": "string",
+      "pattern": "^1\\.\\d+$",
+      "description": "SemVer-lite. Backend rejects unknown majors."
+    },
+    "slug": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]+$",
+      "minLength": 2,
+      "maxLength": 64
+    },
+    "display_name": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "description": { "type": "string", "maxLength": 500 },
+    "domain": { "type": "string", "maxLength": 64 },
+    "tenant_slug": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+
+    "allowed_scopes": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^[a-z0-9._-]+$" },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+
+    "system_prompt": { "type": "string", "minLength": 10, "maxLength": 20000 },
+
+    "cursor_settings": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "runtime": { "enum": ["cloud", "local"] },
+        "model": { "type": "string" },
+        "permission_mode": {
+          "enum": ["plan", "default", "accept_edits", "auto", "supervised"]
+        },
+        "tools_whitelist": { "type": "array", "items": { "type": "string" } },
+        "tools_blacklist": { "type": "array", "items": { "type": "string" } },
+        "setting_sources": {
+          "type": "array",
+          "items": { "enum": ["project", "user", "team", "mdm", "plugins", "all"] }
+        },
+        "max_budget_usd": { "type": "number", "minimum": 0 },
+        "effort": { "enum": ["min", "low", "medium", "high", "max"] },
+        "max_turns": { "type": "integer", "minimum": 1, "maximum": 200 },
+        "auto_create_pr": { "type": "boolean" },
+        "repo_url": { "type": "string", "format": "uri" },
+        "starting_ref": { "type": "string" }
+      }
+    },
+
+    "capabilities": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/capability" },
+      "default": []
+    }
+  },
+
+  "$defs": {
+    "capability": {
+      "type": "object",
+      "required": ["id", "label", "layout", "source"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9_]+$",
+          "minLength": 2,
+          "maxLength": 64
+        },
+        "label": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "description": { "type": "string", "maxLength": 300 },
+
+        "layout": {
+          "enum": ["kpi_grid", "line_chart", "bar_chart", "table", "markdown", "iframe"]
+        },
+        "placement": {
+          "enum": ["workspace_main", "workspace_sidebar", "agent_rail", "hidden"],
+          "default": "workspace_main"
+        },
+        "refresh_seconds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600,
+          "description": "0 = manual refresh only; otherwise dashboard re-fetches every N seconds"
+        },
+
+        "source": { "$ref": "#/$defs/source" },
+
+        "response_shape": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "example": {},
+            "json_schema": { "type": "object" }
+          }
+        },
+
+        "fields": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/field_mapping" }
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "layout": { "const": "kpi_grid" } }, "required": ["layout"] },
+          "then": { "required": ["fields"] }
+        },
+        {
+          "if": { "properties": { "layout": { "const": "table" } }, "required": ["layout"] },
+          "then": { "required": ["fields"] }
+        }
+      ]
+    },
+
+    "source": {
+      "type": "object",
+      "required": ["kind"],
+      "oneOf": [
+        {
+          "properties": {
+            "kind": { "const": "http_get" },
+            "url_template": { "type": "string", "minLength": 1 },
+            "auth_env": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
+            "timeout_ms": { "type": "integer", "minimum": 100, "maximum": 60000 }
+          },
+          "required": ["kind", "url_template"],
+          "additionalProperties": false
+        },
+        {
+          "properties": {
+            "kind": { "const": "http_post" },
+            "url_template": { "type": "string", "minLength": 1 },
+            "auth_env": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
+            "body_template": {},
+            "timeout_ms": { "type": "integer", "minimum": 100, "maximum": 60000 }
+          },
+          "required": ["kind", "url_template"],
+          "additionalProperties": false
+        },
+        {
+          "properties": {
+            "kind": { "const": "static" },
+            "value": {}
+          },
+          "required": ["kind", "value"],
+          "additionalProperties": false
+        },
+        {
+          "properties": {
+            "kind": { "const": "agent_tool" },
+            "tool_name": { "type": "string", "minLength": 1 }
+          },
+          "required": ["kind", "tool_name"],
+          "additionalProperties": false
+        }
+      ]
+    },
+
+    "field_mapping": {
+      "type": "object",
+      "required": ["path", "label"],
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "^[a-zA-Z_][a-zA-Z0-9_.\\[\\]*]*$",
+          "description": "Dot path into the response, e.g. today_deals.amount"
+        },
+        "label": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "format": {
+          "enum": ["currency", "percent", "count", "decimal", "bytes", "datetime", "text"],
+          "default": "text"
+        },
+        "description": { "type": "string", "maxLength": 200 },
+        "unit": { "type": "string", "maxLength": 16 }
+      }
+    }
+  }
+}

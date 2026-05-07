@@ -1,0 +1,18 @@
+# Static scope: just hands the AI the onion-agent base URL so it can
+# build full URLs from capability `url_template` ({ONION_API_BASE}/...).
+#
+# Lives in the vault layer because:
+#   1. Personas reference scopes by name → keeps the manifest portable
+#      across tenants (each tenant has its own onion-agent host).
+#   2. Lets us later flip onion-agent to a private VPC URL by changing
+#      the binding's `value` without touching every persona.
+
+name: onion.api_base
+description: Base URL of the onion-agent service for this tenant.
+
+bindings:
+  - kind: static
+    env: ONION_API_BASE
+    # Override per-tenant by deploying with a different value. Keep
+    # it in lockstep with the dashboard's NEXT_PUBLIC_ONION_API_BASE.
+    value: https://onion-agent.shujian.art

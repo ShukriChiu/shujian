@@ -1,0 +1,13 @@
+# Passthrough scope: hands the AI a real OpenRouter API key so it can
+# call hosted LLMs from inside its tools (e.g. for summarisation).
+#
+# We intentionally don't grant onion-write here — the boss analyst
+# persona's only "write" is calling LLMs on our dime.
+
+name: onion.llm_openrouter
+description: OpenRouter API key for direct LLM calls from the AI persona.
+
+bindings:
+  - kind: passthrough
+    env: OPENROUTER_API_KEY
+    secret_name: onion.openrouter.api_key

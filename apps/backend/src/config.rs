@@ -13,6 +13,16 @@ pub struct Config {
     pub seed_admin_identifier: String,
     pub seed_admin_password: String,
     pub cors_allow_origins: Vec<String>,
+    /// Base URL of the onion-agent we mint persona JWTs against.
+    /// e.g. `https://onion-agent.shujian.art` or `http://localhost:8000` in dev.
+    pub onion_api_base: String,
+    /// Shared secret sent as `X-Backend-Secret` to onion-agent's
+    /// `/api/internal/persona/*` endpoints. Must match what onion-agent has.
+    /// If empty the persona launch path returns 503 with a clear error.
+    pub backend_shared_secret: String,
+    /// Default TTL for minted persona JWTs in seconds. Per-binding
+    /// `ttl_seconds` overrides this when set.
+    pub default_persona_jwt_ttl_seconds: i64,
 }
 
 impl Config {
@@ -60,6 +70,16 @@ impl Config {
                 ]
             });
 
+        let onion_api_base = env::var("ONION_API_BASE")
+            .ok()
+            .map(|s| s.trim_end_matches('/').to_string())
+            .unwrap_or_else(|| "https://onion-agent.shujian.art".into());
+        let backend_shared_secret = env::var("BACKEND_SHARED_SECRET").unwrap_or_default();
+        let default_persona_jwt_ttl_seconds = env::var("DEFAULT_PERSONA_JWT_TTL_SECONDS")
+            .ok()
+            .and_then(|s| s.parse::<i64>().ok())
+            .unwrap_or(3600);
+
         Ok(Self {
             database_url,
             bind_addr,
@@ -70,6 +90,9 @@ impl Config {
             seed_admin_identifier,
             seed_admin_password,
             cors_allow_origins,
+            onion_api_base,
+            backend_shared_secret,
+            default_persona_jwt_ttl_seconds,
         })
     }
 }
