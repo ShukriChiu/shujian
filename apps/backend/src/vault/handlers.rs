@@ -1038,9 +1038,12 @@ async fn resolve_scopes(
                             Err(e) => {
                                 tracing::warn!(error = ?e, scope = %scope.name,
                                     "onion mint-token failed");
+                                // Use {:#} to render the full error chain
+                                // (reqwest → DNS / TLS / status); the bare
+                                // {e} only gives the outermost context line.
                                 errors.push(format!(
-                                    "scope '{}' onion_jwt mint failed: {e}",
-                                    scope.name
+                                    "scope '{}' onion_jwt mint failed: {:#}",
+                                    scope.name, e
                                 ));
                             }
                         }

@@ -116,12 +116,13 @@ class Backend:
     def upsert_scope(self, body: dict) -> dict:
         return self._request("/v1/vault/scopes", method="POST", body=body)
 
-    # Personas
+    # Personas. Axum's nested router exposes the index without a trailing
+    # slash (axum 0.8 stopped auto-redirecting); be explicit.
     def list_personas(self) -> list[dict]:
-        return self._request("/v1/personas/")
+        return self._request("/v1/personas")
 
     def upsert_persona(self, body: dict) -> dict:
-        return self._request("/v1/personas/", method="POST", body=body)
+        return self._request("/v1/personas", method="POST", body=body)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
