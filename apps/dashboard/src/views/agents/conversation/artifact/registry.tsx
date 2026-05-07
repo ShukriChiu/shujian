@@ -37,8 +37,14 @@ export const { registry } = defineRegistry(businessCatalog, {
     Callout: ({ props, children }) => <Callout props={props as never}>{children}</Callout>,
   },
   actions: {
-    drill_down: async () => ({ ok: true }),
-    export_artifact: async () => ({ ok: true }),
+    // No-ops until we wire these through the agent. Action handlers must
+    // return Promise<void>; surface success/failure through the UI later.
+    drill_down: async () => {
+      /* noop */
+    },
+    export_artifact: async () => {
+      /* noop */
+    },
   },
 })
 
@@ -57,10 +63,11 @@ export const ArtifactRenderer = memo(function ArtifactRenderer({
   const safeSpec = useMemo(() => spec ?? null, [spec])
   if (!safeSpec) return <ArtifactSkeleton />
   // JSONUIProvider supplies the Visibility/State/Validation/Action contexts
-  // that <Renderer> (and hooks like useVisibility) require.
+  // that <Renderer> (and hooks like useVisibility) require. We've already
+  // shown the skeleton above when spec is null, so no `loading` prop here.
   return (
     <JSONUIProvider registry={registry}>
-      <Renderer spec={safeSpec} registry={registry} loading={<ArtifactSkeleton />} />
+      <Renderer spec={safeSpec} registry={registry} />
     </JSONUIProvider>
   )
 }, (a, b) => a.spec === b.spec)
