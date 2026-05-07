@@ -168,7 +168,7 @@ function AgentChrome({ agentId, onEdit }: { agentId: string; onEdit: () => void 
   // even when the user lands here via a bookmark.
   const meta = useQuery({
     queryKey: ['cursor', 'meta', agentId],
-    queryFn: () => cursorApi.meta(agentId),
+    queryFn: () => cursorApi.agentMeta(agentId),
     retry: 0,
     staleTime: 30_000,
   })

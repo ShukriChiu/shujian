@@ -286,7 +286,12 @@ export const cursorApi = {
       method: 'PUT',
       body: JSON.stringify(body),
     }),
-  meta: (id: string) =>
+  /**
+   * Read back the create-time options for an agent. Used by AgentEditor
+   * to pre-fill the respawn form. Named `agentMeta` to avoid clashing
+   * with `meta()` above (which returns bridge service info, not per-agent).
+   */
+  agentMeta: (id: string) =>
     request<{ agentId: string; meta: CursorAgentMeta }>(
       `${cursorBase()}/agents/${id}/meta`,
     ),

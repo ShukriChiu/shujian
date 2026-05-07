@@ -51,7 +51,7 @@ export function AgentEditor({ agentId, onClose, onRespawned }: Props) {
   // wiped on bridge restart — there's no persistence yet).
   const meta = useQuery({
     queryKey: ['cursor', 'meta', agentId],
-    queryFn: () => cursorApi.meta(agentId),
+    queryFn: () => cursorApi.agentMeta(agentId),
     retry: 0,
   })
 
