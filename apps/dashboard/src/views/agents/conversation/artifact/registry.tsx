@@ -1,5 +1,5 @@
 import { memo, useMemo } from 'react'
-import { Renderer, defineRegistry, flatToTree } from '@json-render/react'
+import { JSONUIProvider, Renderer, defineRegistry, flatToTree } from '@json-render/react'
 import type { Spec } from '@json-render/core'
 import { businessCatalog } from './catalog'
 import {
@@ -56,7 +56,13 @@ export const ArtifactRenderer = memo(function ArtifactRenderer({
   // flatToTree's reverse — but recharts-friendly: build flat upfront.
   const safeSpec = useMemo(() => spec ?? null, [spec])
   if (!safeSpec) return <ArtifactSkeleton />
-  return <Renderer spec={safeSpec} registry={registry} loading={<ArtifactSkeleton />} />
+  // JSONUIProvider supplies the Visibility/State/Validation/Action contexts
+  // that <Renderer> (and hooks like useVisibility) require.
+  return (
+    <JSONUIProvider registry={registry}>
+      <Renderer spec={safeSpec} registry={registry} loading={<ArtifactSkeleton />} />
+    </JSONUIProvider>
+  )
 }, (a, b) => a.spec === b.spec)
 
 export { flatToTree }
