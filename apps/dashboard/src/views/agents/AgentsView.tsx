@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Bot,
@@ -14,6 +14,7 @@ import {
   X,
 } from 'lucide-react'
 import { Conversation } from './conversation/Conversation'
+import { PersonaLaunchWizard } from './wizard/PersonaLaunchWizard'
 import { agentApi, cursorApi, type AgentDto } from '@/lib/api'
 import { useVaults } from '@/lib/useVaults'
 import { cn } from '@/lib/utils'
@@ -47,6 +48,7 @@ function withTransition(update: () => void) {
 
 export function AgentsView() {
   const [params, setParams] = useSearchParams()
+  const navigate = useNavigate()
   const selectedId = params.get('id')
   const newOpen = params.get('new') === '1'
   const [filter, setFilter] = useState<Filter>('all')
@@ -142,7 +144,23 @@ export function AgentsView() {
             style={{ viewTransitionName: 'agent-rail' } as React.CSSProperties}
           >
             {newOpen ? (
-              <NewAgentRail onClose={closeNew} onCreated={(id) => selectId(id)} />
+              <PersonaLaunchWizard
+                onClose={closeNew}
+                onCreated={(id, ctx) => {
+                  closeNew()
+                  if (ctx.toWorkspace) {
+                    const parsed = parseId(id)
+                    if (parsed) {
+                      const qs = new URLSearchParams()
+                      qs.set('agent', parsed.name)
+                      if (ctx.personaSlug) qs.set('persona', ctx.personaSlug)
+                      navigate(`/workspace?${qs.toString()}`)
+                      return
+                    }
+                  }
+                  selectId(id)
+                }}
+              />
             ) : selected ? (
               <AgentRail agent={selected} onClose={() => selectId(null)} />
             ) : null}
