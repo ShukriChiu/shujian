@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use anyhow::Result;
 use axum::http::header::{AUTHORIZATION, CONTENT_TYPE};
-use axum::http::{HeaderValue, Method};
+use axum::http::{HeaderName, HeaderValue, Method};
 use axum::routing::{delete, get, post};
 use axum::Router;
 use tower_http::cors::{AllowOrigin, CorsLayer};
@@ -134,7 +134,14 @@ fn build_cors(cfg: &Config) -> CorsLayer {
             Method::DELETE,
             Method::OPTIONS,
         ])
-        .allow_headers([AUTHORIZATION, CONTENT_TYPE])
+        // x-tenant-id: superusers / multi-tenant clients pin a tenant per
+        // request. Without it in the allow list, the browser preflight
+        // strips the header and the dashboard sees "Failed to fetch".
+        .allow_headers([
+            AUTHORIZATION,
+            CONTENT_TYPE,
+            HeaderName::from_static("x-tenant-id"),
+        ])
         .max_age(Duration::from_secs(60 * 30));
 
     if cfg
