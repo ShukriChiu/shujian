@@ -1482,3 +1482,383 @@ pub async fn kek_status(
         source,
     }))
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Agent vaults — see migration 0004 + models::AgentVault.
+//
+// These are the simple "named bag of envVars" the dashboard's vaults UI
+// has always exposed (originally backed by localStorage; now backed by PG
+// for cross-device sync). Owned per (tenant, user); no admin requirement.
+//
+// Storage uses the same DEK envelope as `vault_secrets`. AAD binds the
+// wrapped DEK to (tenant_id, vault_id) so a row leak doesn't let an
+// attacker swap ciphertexts between rows.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Like `require_tenant_admin` but accepts any membership role. Used for
+/// per-user resources (agent_vaults) where we don't gate writes on admin.
+async fn require_tenant_member(
+    db: &PgPool,
+    auth: &AuthContext,
+    headers: &HeaderMap,
+) -> AppResult<Uuid> {
+    let header_tenant: Option<Uuid> = headers
+        .get("x-tenant-id")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| Uuid::parse_str(s).ok());
+
+    let tenant_id = match header_tenant {
+        Some(t) if auth.user.is_superuser => t,
+        Some(_) => return Err(AppError::Forbidden),
+        None => auth.session.tenant_id.ok_or_else(|| {
+            AppError::bad_request("no active tenant — switch tenant first or send X-Tenant-Id")
+        })?,
+    };
+
+    if auth.user.is_superuser {
+        return Ok(tenant_id);
+    }
+    let role: Option<String> = sqlx::query_scalar(
+        "SELECT role FROM memberships WHERE tenant_id = $1 AND user_id = $2",
+    )
+    .bind(tenant_id)
+    .bind(auth.user.id)
+    .fetch_optional(db)
+    .await?;
+    if role.is_some() {
+        Ok(tenant_id)
+    } else {
+        Err(AppError::Forbidden)
+    }
+}
+
+/// Convenience: encode a vault's `envs` map as JSON bytes. Sorted via
+/// BTreeMap so the resulting ciphertext is deterministic-ish (handy for
+/// debugging, doesn't matter for security since each row uses a fresh DEK).
+fn encode_vault_envs(envs: &std::collections::BTreeMap<String, String>) -> AppResult<Vec<u8>> {
+    serde_json::to_vec(envs).map_err(|e| AppError::Internal(e.into()))
+}
+
+fn decode_vault_envs(bytes: &[u8]) -> AppResult<std::collections::BTreeMap<String, String>> {
+    serde_json::from_slice(bytes).map_err(|e| AppError::Internal(e.into()))
+}
+
+/// SQLx row shim — keeps the public AgentVault type free of raw bytes.
+#[derive(sqlx::FromRow)]
+struct AgentVaultMetaRow {
+    id: Uuid,
+    tenant_id: Uuid,
+    user_id: Uuid,
+    name: String,
+    description: String,
+    tags: serde_json::Value,
+    env_keys: Vec<String>,
+    env_count: i32,
+    created_at: chrono::DateTime<chrono::Utc>,
+    updated_at: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(sqlx::FromRow)]
+struct AgentVaultFullRow {
+    id: Uuid,
+    tenant_id: Uuid,
+    user_id: Uuid,
+    name: String,
+    description: String,
+    tags: serde_json::Value,
+    env_keys: Vec<String>,
+    env_count: i32,
+    envs_ciphertext: Vec<u8>,
+    envs_nonce: Vec<u8>,
+    envs_auth_tag: Vec<u8>,
+    envs_dek_wrapped: Vec<u8>,
+    envs_dek_nonce: Vec<u8>,
+    envs_kek_version: i32,
+    created_at: chrono::DateTime<chrono::Utc>,
+    updated_at: chrono::DateTime<chrono::Utc>,
+}
+
+fn meta_row_to_public(r: AgentVaultMetaRow) -> AgentVault {
+    AgentVault {
+        id: r.id,
+        tenant_id: r.tenant_id,
+        user_id: r.user_id,
+        name: r.name,
+        description: r.description,
+        tags: serde_json::from_value(r.tags).unwrap_or_default(),
+        env_keys: r.env_keys,
+        env_count: r.env_count,
+        envs: None,
+        created_at: r.created_at,
+        updated_at: r.updated_at,
+    }
+}
+
+fn full_row_to_public(
+    r: AgentVaultFullRow,
+    envs: std::collections::BTreeMap<String, String>,
+) -> AgentVault {
+    AgentVault {
+        id: r.id,
+        tenant_id: r.tenant_id,
+        user_id: r.user_id,
+        name: r.name,
+        description: r.description,
+        tags: serde_json::from_value(r.tags).unwrap_or_default(),
+        env_keys: r.env_keys,
+        env_count: r.env_count,
+        envs: Some(envs),
+        created_at: r.created_at,
+        updated_at: r.updated_at,
+    }
+}
+
+/// Build the AAD that scopes the wrapped DEK to (tenant_id, vault_id).
+fn vault_aad_label(vault_id: &Uuid) -> String {
+    // We piggyback on `wrap_dek`'s `(tenant_id, secret_name)` AAD shape by
+    // using a stable per-vault label as the "secret_name". `agent_vault:{uuid}`
+    // is unambiguous and won't collide with real secret names (which are
+    // lowercase + dot/hyphen/underscore only — no `:`).
+    format!("agent_vault:{vault_id}")
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpsertAgentVaultPathlessBody {
+    /// Required: client-generated stable id. The dashboard re-uses this
+    /// across edits so renames don't break references kept in URLs / wizard
+    /// state (`?vault=<id>`).
+    pub id: Uuid,
+    #[serde(flatten)]
+    pub body: crate::vault::models::UpsertAgentVaultBody,
+}
+
+pub async fn upsert_agent_vault(
+    State(state): State<AppState>,
+    State(kek): State<KekProvider>,
+    auth: AuthContext,
+    headers: HeaderMap,
+    Json(req): Json<UpsertAgentVaultPathlessBody>,
+) -> AppResult<Json<AgentVault>> {
+    let tenant_id = require_tenant_member(&state.db, &auth, &headers).await?;
+    let user_id = auth.user.id;
+
+    let name = req.body.name.trim().to_string();
+    if name.is_empty() {
+        return Err(AppError::bad_request("name required"));
+    }
+    if name.len() > 200 {
+        return Err(AppError::bad_request("name too long (max 200)"));
+    }
+
+    let envs = req.body.envs;
+    let env_keys: Vec<String> = envs.keys().cloned().collect();
+    let env_count: i32 = envs.len() as i32;
+    let tags_json = serde_json::to_value(req.body.tags.unwrap_or_default())
+        .unwrap_or_else(|_| serde_json::json!([]));
+    let description = req.body.description.unwrap_or_default();
+
+    // Encrypt envs as a single JSON blob.
+    let plaintext = encode_vault_envs(&envs)?;
+    let active = kek.active().await.map_err(map_kek_err)?;
+    let env_seal = crypto::encrypt_with_fresh_dek(&plaintext)
+        .map_err(|e| AppError::Internal(e))?;
+    let aad_label = vault_aad_label(&req.id);
+    let wrapped = crypto::wrap_dek(&active.material, &env_seal.dek, &tenant_id, &aad_label)
+        .map_err(|e| AppError::Internal(e))?;
+
+    // The (tenant_id, user_id, name) UNIQUE constraint guards against two
+    // vaults sharing a name. We resolve conflicts by id (so a rename is
+    // OK) but reject if another row already owns the new name.
+    let conflict: Option<Uuid> = sqlx::query_scalar(
+        "SELECT id FROM agent_vaults
+         WHERE tenant_id = $1 AND user_id = $2 AND name = $3 AND id <> $4",
+    )
+    .bind(tenant_id)
+    .bind(user_id)
+    .bind(&name)
+    .bind(req.id)
+    .fetch_optional(&state.db)
+    .await?;
+    if conflict.is_some() {
+        return Err(AppError::conflict(format!(
+            "another vault named '{name}' already exists in this tenant"
+        )));
+    }
+
+    let row: AgentVaultMetaRow = sqlx::query_as(
+        r#"
+        INSERT INTO agent_vaults (
+            id, tenant_id, user_id, name, description, tags,
+            envs_ciphertext, envs_nonce, envs_auth_tag,
+            envs_dek_wrapped, envs_dek_nonce, envs_kek_version,
+            env_keys, env_count
+        )
+        VALUES ($1, $2, $3, $4, $5, $6,
+                $7, $8, $9,
+                $10, $11, $12,
+                $13, $14)
+        ON CONFLICT (id) DO UPDATE
+        SET name             = EXCLUDED.name,
+            description      = EXCLUDED.description,
+            tags             = EXCLUDED.tags,
+            envs_ciphertext  = EXCLUDED.envs_ciphertext,
+            envs_nonce       = EXCLUDED.envs_nonce,
+            envs_auth_tag    = EXCLUDED.envs_auth_tag,
+            envs_dek_wrapped = EXCLUDED.envs_dek_wrapped,
+            envs_dek_nonce   = EXCLUDED.envs_dek_nonce,
+            envs_kek_version = EXCLUDED.envs_kek_version,
+            env_keys         = EXCLUDED.env_keys,
+            env_count        = EXCLUDED.env_count,
+            updated_at       = now()
+        WHERE agent_vaults.tenant_id = EXCLUDED.tenant_id
+          AND agent_vaults.user_id   = EXCLUDED.user_id
+        RETURNING id, tenant_id, user_id, name, description, tags,
+                  env_keys, env_count, created_at, updated_at
+        "#,
+    )
+    .bind(req.id)
+    .bind(tenant_id)
+    .bind(user_id)
+    .bind(&name)
+    .bind(&description)
+    .bind(&tags_json)
+    .bind(&env_seal.ciphertext)
+    .bind(&env_seal.nonce[..])
+    .bind(&env_seal.auth_tag[..])
+    .bind(&wrapped.wrapped)
+    .bind(&wrapped.nonce[..])
+    .bind(active.version)
+    .bind(&env_keys)
+    .bind(env_count)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or_else(|| {
+        // ON CONFLICT WHERE clause failed — id collides with someone else's row.
+        AppError::conflict("vault id collides with another user's vault")
+    })?;
+
+    tracing::info!(
+        tenant = %tenant_id,
+        user = %user_id,
+        vault = %req.id,
+        keys = env_count,
+        "agent vault upserted"
+    );
+
+    let mut public = meta_row_to_public(row);
+    public.envs = Some(envs);
+    Ok(Json(public))
+}
+
+pub async fn list_agent_vaults(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    headers: HeaderMap,
+) -> AppResult<Json<Vec<AgentVault>>> {
+    let tenant_id = require_tenant_member(&state.db, &auth, &headers).await?;
+    let user_id = auth.user.id;
+    let rows: Vec<AgentVaultMetaRow> = sqlx::query_as(
+        r#"
+        SELECT id, tenant_id, user_id, name, description, tags,
+               env_keys, env_count, created_at, updated_at
+        FROM agent_vaults
+        WHERE tenant_id = $1 AND user_id = $2
+        ORDER BY updated_at DESC
+        "#,
+    )
+    .bind(tenant_id)
+    .bind(user_id)
+    .fetch_all(&state.db)
+    .await?;
+    Ok(Json(rows.into_iter().map(meta_row_to_public).collect()))
+}
+
+pub async fn get_agent_vault(
+    State(state): State<AppState>,
+    State(kek): State<KekProvider>,
+    auth: AuthContext,
+    headers: HeaderMap,
+    Path(id): Path<Uuid>,
+) -> AppResult<Json<AgentVault>> {
+    let tenant_id = require_tenant_member(&state.db, &auth, &headers).await?;
+    let user_id = auth.user.id;
+    let row: Option<AgentVaultFullRow> = sqlx::query_as(
+        r#"
+        SELECT id, tenant_id, user_id, name, description, tags,
+               env_keys, env_count,
+               envs_ciphertext, envs_nonce, envs_auth_tag,
+               envs_dek_wrapped, envs_dek_nonce, envs_kek_version,
+               created_at, updated_at
+        FROM agent_vaults
+        WHERE id = $1 AND tenant_id = $2 AND user_id = $3
+        "#,
+    )
+    .bind(id)
+    .bind(tenant_id)
+    .bind(user_id)
+    .fetch_optional(&state.db)
+    .await?;
+    let row = row.ok_or(AppError::NotFound)?;
+
+    // Unwrap & decrypt — we always need the active KEK for the row's
+    // version. KekProvider keeps both current and previous keys in
+    // memory after a rotation; if the row predates rotation we still
+    // resolve correctly via `KekProvider::by_version`.
+    let key_material = kek
+        .material_for(row.envs_kek_version)
+        .await
+        .map_err(map_kek_err)?;
+
+    let nonce: [u8; 12] = row
+        .envs_dek_nonce
+        .as_slice()
+        .try_into()
+        .map_err(|_| AppError::Internal(anyhow::anyhow!("bad envs_dek_nonce length")))?;
+    let aad_label = vault_aad_label(&row.id);
+    let dek = crypto::unwrap_dek(
+        &key_material,
+        &row.envs_dek_wrapped,
+        &nonce,
+        &row.tenant_id,
+        &aad_label,
+    )
+    .map_err(|e| AppError::Internal(e))?;
+    let env_nonce: [u8; 12] = row
+        .envs_nonce
+        .as_slice()
+        .try_into()
+        .map_err(|_| AppError::Internal(anyhow::anyhow!("bad envs_nonce length")))?;
+    let env_tag: [u8; 16] = row
+        .envs_auth_tag
+        .as_slice()
+        .try_into()
+        .map_err(|_| AppError::Internal(anyhow::anyhow!("bad envs_auth_tag length")))?;
+    let plaintext = crypto::decrypt_with_dek(&dek, &env_nonce, &env_tag, &row.envs_ciphertext)
+        .map_err(|e| AppError::Internal(e))?;
+    let envs = decode_vault_envs(&plaintext)?;
+
+    Ok(Json(full_row_to_public(row, envs)))
+}
+
+pub async fn delete_agent_vault(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    headers: HeaderMap,
+    Path(id): Path<Uuid>,
+) -> AppResult<Json<serde_json::Value>> {
+    let tenant_id = require_tenant_member(&state.db, &auth, &headers).await?;
+    let user_id = auth.user.id;
+    let n = sqlx::query(
+        "DELETE FROM agent_vaults WHERE id = $1 AND tenant_id = $2 AND user_id = $3",
+    )
+    .bind(id)
+    .bind(tenant_id)
+    .bind(user_id)
+    .execute(&state.db)
+    .await?
+    .rows_affected();
+    if n == 0 {
+        return Err(AppError::NotFound);
+    }
+    Ok(Json(serde_json::json!({ "deleted": id })))
+}

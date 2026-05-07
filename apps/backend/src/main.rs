@@ -114,6 +114,17 @@ fn vault_routes() -> Router<AppState> {
         .route("/operator-refs/{id}", delete(v::delete_operator_ref))
         .route("/scopes", post(v::upsert_scope).get(v::list_scopes))
         .route("/scopes/{name}", delete(v::delete_scope))
+        // Per-user "named bag of envVars" — see migration 0004 / handlers
+        // §"Agent vaults". Owned by the calling user inside the active
+        // tenant; no admin role required.
+        .route(
+            "/agent-vaults",
+            post(v::upsert_agent_vault).get(v::list_agent_vaults),
+        )
+        .route(
+            "/agent-vaults/{id}",
+            get(v::get_agent_vault).delete(v::delete_agent_vault),
+        )
         .route("/_admin/kek", get(v::kek_status))
 }
 

@@ -9,6 +9,7 @@ import {
   type TenantPublic,
   type UserPublic,
 } from './backend'
+import { _resetVaultsCache } from './vaults'
 
 interface AuthState {
   status: 'loading' | 'anonymous' | 'authenticated'
@@ -61,6 +62,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setUnauthorizedHandler(() => {
       sessionExpiredRef.current = true
+      _resetVaultsCache()
       setState({ status: 'anonymous', user: null, tenant: null, tenants: [], error: null })
     })
     return () => setUnauthorizedHandler(null)
@@ -85,6 +87,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(async () => {
     await backend.logout()
+    _resetVaultsCache()
     setState({ status: 'anonymous', user: null, tenant: null, tenants: [], error: null })
   }, [])
 

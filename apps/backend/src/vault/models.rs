@@ -242,3 +242,45 @@ pub struct RecordLaunchBody {
 pub struct RevokeIssuanceBody {
     pub reason: Option<String>,
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Agent vaults: lightweight named env bundles created by end users and
+// injected into Cursor cloud agents at launch. See migration 0004 for the
+// table layout and `vault/handlers.rs::agent_vaults` module for the routes.
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+pub struct UpsertAgentVaultBody {
+    pub name: String,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub tags: Option<Vec<String>>,
+    /// Flat key→value map. Stored encrypted at rest. Empty map is allowed
+    /// (callers sometimes create the bundle first and fill values later).
+    #[serde(default)]
+    pub envs: std::collections::BTreeMap<String, String>,
+}
+
+/// Public read shape — returned by list/get/upsert. `envs` is plaintext
+/// **only** on the per-id GET endpoint (used at launch time / the editor)
+/// and is omitted from list responses to keep the list cheap.
+#[derive(Debug, Serialize)]
+pub struct AgentVault {
+    pub id: Uuid,
+    pub tenant_id: Uuid,
+    pub user_id: Uuid,
+    pub name: String,
+    pub description: String,
+    pub tags: Vec<String>,
+    /// Cached list of env keys — always populated, even when `envs` is None.
+    pub env_keys: Vec<String>,
+    pub env_count: i32,
+    /// Plaintext envs. Populated on detail GET / immediately after upsert
+    /// so the dashboard can re-render without an extra round-trip. List
+    /// responses leave this `None`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub envs: Option<std::collections::BTreeMap<String, String>>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}

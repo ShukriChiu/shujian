@@ -4,9 +4,11 @@ import { listVaults, onVaultsChange, type Vault } from './vaults'
 const SSR_FALLBACK: Vault[] = []
 const ssrSnapshot = () => SSR_FALLBACK
 
-// Cache the array reference so useSyncExternalStore's referential equality
-// check doesn't fire a re-render on every read. listVaults() already returns
-// the cached state's array, so we can pass it through directly.
+/**
+ * Subscribes to the vault cache and triggers a background fetch on first
+ * read (see `lib/vaults::listVaults`). Returns the in-memory snapshot —
+ * `envs` is hydrated lazily; call `loadVault(id)` before reading values.
+ */
 export function useVaults(): Vault[] {
   return useSyncExternalStore(onVaultsChange, listVaults, ssrSnapshot)
 }

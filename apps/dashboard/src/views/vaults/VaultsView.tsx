@@ -24,6 +24,7 @@ import {
 } from '@/lib/dotenvParse'
 import {
   genVaultId,
+  loadVault,
   looksLikeSecretKey,
   maskValue as maskLocalValue,
   removeVault,
@@ -66,8 +67,9 @@ export function VaultsView() {
         <div>
           <h1 className="text-xl font-semibold tracking-[-0.012em] text-ink">Vaults</h1>
           <p className="mt-1 max-w-prose text-sm text-ink-muted">
-            租户级凭证。服务端 Vaults 用 AES-256-GCM 加密落库，KEK 在 backend 进程外
-            （Railway env，未来可换 KMS）；启动 persona 时按 scope 解密成短时 envVars 注入。本地草稿仍是 PoC，仅本浏览器可见。
+            租户级凭证。两边都 AES-256-GCM 加密落库（KEK 在 backend 进程外，Railway env，未来可换 KMS）。
+            服务端 Vaults 走 secret + scope + persona 流水线（启动时按 scope 解密成短时 envVars 注入）；
+            Agent Vaults 是简单 envVar 包，启动 cursor agent 时整包注入，跨设备同步。
           </p>
         </div>
       </div>
@@ -78,7 +80,7 @@ export function VaultsView() {
             服务端 Vaults
           </TabButton>
           <TabButton active={tab === 'local'} onClick={() => setTab('local')}>
-            本地草稿（legacy）
+            Agent Vaults
           </TabButton>
         </div>
       </nav>
@@ -916,6 +918,17 @@ function LocalVaultsTab() {
   const newOpen = params.get('new') === '1'
   const selected = vaults.find((v) => v.id === selectedId) ?? null
 
+  // The list endpoint omits `envs` to skip per-row decryption. The
+  // editor needs them, so prime the cache as soon as a row is selected.
+  useEffect(() => {
+    if (!selectedId) return
+    const cached = vaults.find((v) => v.id === selectedId)
+    if (!cached || cached.envsLoaded) return
+    void loadVault(selectedId).catch((err) => {
+      console.warn('[vaults] loadVault failed', err)
+    })
+  }, [selectedId, vaults])
+
   function selectVault(id: string | null) {
     const next = new URLSearchParams(params)
     if (id) next.set('id', id)
@@ -942,13 +955,13 @@ function LocalVaultsTab() {
         title=""
         meta={
           <span className="inline-flex items-center gap-1.5 rounded-md border border-line bg-surface-2 px-2 py-0.5 font-mono text-[11px] text-ink-dim">
-            <ShieldAlert className="h-3 w-3" />
-            仅本浏览器 · 不加密
+            <ShieldCheck className="h-3 w-3" />
+            服务端加密 · 多端同步
           </span>
         }
         actions={
           <button onClick={openNew} className="btn btn-primary">
-            <Plus className="h-4 w-4" /> 新建本地草稿
+            <Plus className="h-4 w-4" /> 新建 Vault
           </button>
         }
       />
@@ -958,17 +971,16 @@ function LocalVaultsTab() {
             <div className="px-6 py-10">
               <EmptyState
                 glyph={<KeyRound className="h-5 w-5" />}
-                title="本地草稿区为空"
+                title="还没有 Agent Vault"
                 hint={
                   <>
-                    本地草稿仅留作 PoC，凭证在你的浏览器 localStorage 里。
-                    <br />
-                    生产环境用上面的"服务端 Vaults"。
+                    每个 Vault 是一包 envVar；启动 cursor agent 时整包注入到
+                    云端 sandbox。值在后端 AES-256-GCM 加密落库，跨设备同步。
                   </>
                 }
                 action={
                   <button onClick={openNew} className="btn">
-                    <Plus className="h-4 w-4" /> 新建草稿
+                    <Plus className="h-4 w-4" /> 新建 Vault
                   </button>
                 }
               />
@@ -1032,7 +1044,7 @@ function LocalVaultRow({
           )}
         </span>
         <span className="font-mono text-xs text-ink-muted">
-          {Object.keys(v.envs).length} keys
+          {(v.envKeys?.length ?? Object.keys(v.envs).length)} keys
         </span>
         <span className="font-mono text-xs text-ink-dim">
           {v.tags && v.tags.length > 0 ? v.tags.join(', ') : '—'}
@@ -1094,7 +1106,11 @@ function LocalVaultEditor({
     setPairs((prev) => [...prev.filter((p) => p.k || p.v), ...newPairs])
   }
 
-  function save() {
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+
+  async function save() {
+    if (saving) return
     const envs: Record<string, string> = {}
     for (const p of pairs) {
       const key = p.k.trim()
@@ -1106,16 +1122,22 @@ function LocalVaultEditor({
       .split(',')
       .map((t) => t.trim())
       .filter(Boolean)
-    upsertVault({
-      id,
-      name: name.trim() || (vault ? vault.name : 'untitled'),
-      description: description.trim(),
-      tags: tagsArr,
-      envs,
-      createdAt: vault?.createdAt ?? new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    })
-    onSaved(id)
+    setSaving(true)
+    setSaveError(null)
+    try {
+      await upsertVault({
+        id,
+        name: name.trim() || (vault ? vault.name : 'untitled'),
+        description: description.trim(),
+        tags: tagsArr,
+        envs,
+      })
+      onSaved(id)
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -1210,13 +1232,22 @@ function LocalVaultEditor({
           </button>
         </div>
       </div>
+      {saveError && (
+        <div className="border-t border-bad/30 bg-bad-tint px-5 py-2 text-[11.5px] text-bad">
+          保存失败：{saveError}
+        </div>
+      )}
       <div className="flex items-center justify-between gap-2 border-t border-line bg-surface px-5 py-3">
         {isEdit && onDeleted ? (
           <button
-            onClick={() => {
-              if (vault && confirm(`确认删除草稿 "${vault.name}"?`)) {
-                removeVault(vault.id)
+            onClick={async () => {
+              if (!vault) return
+              if (!confirm(`确认删除 "${vault.name}"?`)) return
+              try {
+                await removeVault(vault.id)
                 onDeleted()
+              } catch (err) {
+                alert(`删除失败：${err instanceof Error ? err.message : String(err)}`)
               }
             }}
             className="btn btn-ghost text-xs hover:text-bad"
@@ -1227,11 +1258,11 @@ function LocalVaultEditor({
           <span />
         )}
         <div className="flex items-center gap-2">
-          <button onClick={onClose} className="btn">
+          <button onClick={onClose} className="btn" disabled={saving}>
             取消
           </button>
-          <button onClick={save} className="btn btn-primary">
-            保存
+          <button onClick={save} className="btn btn-primary" disabled={saving}>
+            {saving ? '保存中…' : '保存'}
           </button>
         </div>
       </div>
