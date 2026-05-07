@@ -294,12 +294,15 @@ function summarizeForKind(b: Exclude<CanvasBlock, RawBlock>): string {
 
 function compileShorthand(b: Exclude<CanvasBlock, RawBlock>): Spec {
   const root = 'root'
-  const elements: Record<string, { type: string; props: Record<string, unknown>; slots?: Record<string, string[]> }> = {}
+  // @json-render spec uses `children: string[]` for nesting (NOT `slots`).
+  // catalog's `slots: ['default']` only declares which slot names a
+  // component accepts — the runtime field on the UIElement is children.
+  const elements: Record<string, { type: string; props: Record<string, unknown>; children?: string[] }> = {}
   const inner = 'body'
   elements[root] = {
     type: 'Frame',
     props: { title: b.title, subtitle: b.subtitle ?? null, period: b.period ?? null },
-    slots: { default: [inner] },
+    children: [inner],
   }
   switch (b.kind) {
     case 'metric':
