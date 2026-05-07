@@ -147,6 +147,25 @@ export interface CursorAgent {
   model?: { id: string }
 }
 
+/** Returned by `GET /agents/:id/meta` and embedded in create/update responses.
+ *  Mirrors the bridge's `AgentMeta` shape so the dashboard can pre-fill the
+ *  edit form without re-asking the user. */
+export interface CursorAgentMeta {
+  runtime: 'local' | 'cloud'
+  modelId: string
+  name?: string
+  // cloud
+  repoUrl?: string
+  startingRef?: string
+  envVars?: Record<string, string>
+  autoCreatePR?: boolean
+  // local
+  cwd?: string
+  settingSources?: Array<'project' | 'user' | 'team' | 'mdm' | 'plugins' | 'all'>
+}
+
+export type CursorAgentWithMeta = CursorAgent & { runtime: string; meta?: CursorAgentMeta }
+
 export interface CursorMessageResult {
   runId: string
   status: 'finished' | 'error' | 'cancelled'
@@ -231,15 +250,46 @@ export const cursorApi = {
     cwd?: string
     repoUrl?: string
     startingRef?: string
+    /** dashboard cloud agents are read-only knowledgebase consumers; the
+     *  wizard pins this to false and never exposes the toggle. Local
+     *  runtime ignores it. */
     autoCreatePR?: boolean
     name?: string
     settingSources?: Array<'project' | 'user' | 'team' | 'mdm' | 'plugins' | 'all'>
     envVars?: Record<string, string>
   }) =>
-    request<CursorAgent & { runtime: string }>(`${cursorBase()}/agents`, {
+    request<CursorAgentWithMeta>(`${cursorBase()}/agents`, {
       method: 'POST',
       body: JSON.stringify(body),
     }),
+  /** Re-spawn an agent with new settings (model, repo, envVars). Cursor
+   *  cloud sandboxes are immutable, so this disposes the old one and
+   *  starts a fresh one — the new agent gets a brand new agentId, which
+   *  the caller must adopt. Conversation history does NOT carry over. */
+  update: (
+    id: string,
+    body: Partial<{
+      model: string
+      repoUrl: string
+      startingRef: string
+      envVars: Record<string, string>
+      name: string
+    }>,
+  ) =>
+    request<{
+      previousAgentId: string
+      agentId: string
+      model?: { id: string }
+      runtime: string
+      meta: CursorAgentMeta
+    }>(`${cursorBase()}/agents/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
+  meta: (id: string) =>
+    request<{ agentId: string; meta: CursorAgentMeta }>(
+      `${cursorBase()}/agents/${id}/meta`,
+    ),
   dispose: (id: string) =>
     request<{ disposed: string }>(`${cursorBase()}/agents/${id}`, { method: 'DELETE' }),
   send: (id: string, message: string) =>

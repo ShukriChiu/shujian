@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Bot, ExternalLink, ShieldCheck, Sparkles } from 'lucide-react'
+import { Bot, ExternalLink, Pencil, ShieldCheck, Sparkles } from 'lucide-react'
 import { ArtifactPane } from './ArtifactPane'
 import { WorkspaceChat } from './WorkspaceChat'
 import { CapabilityRenderer } from './CapabilityRenderer'
 import { useCursorChat } from '@/lib/useCursorChat'
+import { AgentEditor } from '@/views/agents/AgentEditor'
 import {
   serverPersonas,
   type ResolvedEnvVar,
@@ -19,6 +20,7 @@ import {
   saveIssuanceBundle,
 } from '@/lib/issuanceBundle'
 import { useCountdown } from '@/lib/useCountdown'
+import { cursorApi } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
 /**
@@ -44,15 +46,33 @@ import { cn } from '@/lib/utils'
  *                 rendered through the existing JSON-render pipeline.
  */
 export function WorkspaceView() {
-  const [params] = useSearchParams()
+  const [params, setParams] = useSearchParams()
   const agentId = params.get('agent')
   const personaSlug = params.get('persona')
 
+  // After AgentEditor respawns the cloud agent we get a brand new
+  // agentId. Persist it back into the URL so a refresh hits the right
+  // sandbox and useCursorChat reconnects cleanly.
+  const replaceAgentId = useCallback(
+    (newId: string) => {
+      const next = new URLSearchParams(params)
+      next.set('agent', newId)
+      setParams(next, { replace: true })
+    },
+    [params, setParams],
+  )
+
   if (agentId && personaSlug) {
-    return <PersonaWorkspace agentId={agentId} personaSlug={personaSlug} />
+    return (
+      <PersonaWorkspace
+        agentId={agentId}
+        personaSlug={personaSlug}
+        onAgentReplaced={replaceAgentId}
+      />
+    )
   }
   if (agentId) {
-    return <AgentOnlyWorkspace agentId={agentId} />
+    return <AgentOnlyWorkspace agentId={agentId} onAgentReplaced={replaceAgentId} />
   }
   return <NoAgentPlaceholder />
 }
@@ -95,8 +115,15 @@ function NoAgentPlaceholder() {
 /* MODE B · agent-only (no persona, real chat, generic artifact pane)          */
 /* -------------------------------------------------------------------------- */
 
-function AgentOnlyWorkspace({ agentId }: { agentId: string }) {
+function AgentOnlyWorkspace({
+  agentId,
+  onAgentReplaced,
+}: {
+  agentId: string
+  onAgentReplaced: (newId: string) => void
+}) {
   const chat = useCursorChat({ agentId })
+  const [editing, setEditing] = useState(false)
   useEffect(() => {
     document.title = `Workspace · ${agentId.slice(0, 8)}`
   }, [agentId])
@@ -106,8 +133,11 @@ function AgentOnlyWorkspace({ agentId }: { agentId: string }) {
       className="grid h-full min-h-0 w-full"
       style={{ gridTemplateColumns: 'minmax(380px, 0.45fr) minmax(0, 0.55fr)' }}
     >
-      <div className="flex min-h-0 min-w-0 border-r border-line">
-        <WorkspaceChat chat={chat} />
+      <div className="flex min-h-0 min-w-0 flex-col border-r border-line">
+        <AgentChrome agentId={agentId} onEdit={() => setEditing(true)} />
+        <div className="min-h-0 flex-1">
+          <WorkspaceChat chat={chat} />
+        </div>
       </div>
       <div className="min-h-0 min-w-0">
         <ArtifactPane
@@ -117,6 +147,80 @@ function AgentOnlyWorkspace({ agentId }: { agentId: string }) {
           onClose={handleClose}
         />
       </div>
+      {editing && (
+        <EditorOverlay>
+          <AgentEditor
+            agentId={agentId}
+            onClose={() => setEditing(false)}
+            onRespawned={(newId) => {
+              setEditing(false)
+              onAgentReplaced(newId)
+            }}
+          />
+        </EditorOverlay>
+      )}
+    </div>
+  )
+}
+
+function AgentChrome({ agentId, onEdit }: { agentId: string; onEdit: () => void }) {
+  // Pull live meta so the chrome shows the bound repo + envVars count
+  // even when the user lands here via a bookmark.
+  const meta = useQuery({
+    queryKey: ['cursor', 'meta', agentId],
+    queryFn: () => cursorApi.meta(agentId),
+    retry: 0,
+    staleTime: 30_000,
+  })
+  const m = meta.data?.meta
+  const envCount = m?.envVars ? Object.keys(m.envVars).length : 0
+  return (
+    <header className="flex shrink-0 items-center gap-3 border-b border-line bg-surface/60 px-4 py-2.5 backdrop-blur">
+      <span className="flex h-6 w-6 items-center justify-center rounded-md bg-accent/15 text-accent">
+        <Bot className="h-3.5 w-3.5" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <span className="truncate text-[13px] font-medium text-ink">cursor cloud agent</span>
+          <span className="font-mono text-[10px] uppercase tracking-[0.06em] text-ink-dim">
+            {agentId.slice(0, 12)}…
+          </span>
+        </div>
+        <div className="mt-0.5 flex items-center gap-2 text-[11px] text-ink-muted">
+          {m?.repoUrl && (
+            <span className="truncate font-mono text-[10px] text-ink-dim" title={m.repoUrl}>
+              {m.repoUrl.replace(/^https?:\/\/(www\.)?github\.com\//, '')}
+            </span>
+          )}
+          {envCount > 0 && (
+            <span className="pill pill-ok text-[10px] normal-case">
+              vault · {envCount} env
+            </span>
+          )}
+          {!m && !meta.isLoading && (
+            <span className="text-[10px] text-ink-dim">无 meta（bridge 重启了？）</span>
+          )}
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={onEdit}
+        className="btn h-7 px-2 text-[11px]"
+        aria-label="Edit agent"
+      >
+        <Pencil className="h-3 w-3" />
+        编辑
+      </button>
+    </header>
+  )
+}
+
+function EditorOverlay({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fade-up">
+      <div className="flex h-[640px] w-[480px] max-w-[92vw] flex-col overflow-hidden rounded-lg border border-line bg-surface shadow-2xl">
+        {children}
+      </div>
     </div>
   )
 }
@@ -125,9 +229,18 @@ function AgentOnlyWorkspace({ agentId }: { agentId: string }) {
 /* MODE C · persona workspace                                                  */
 /* -------------------------------------------------------------------------- */
 
-function PersonaWorkspace({ agentId, personaSlug }: { agentId: string; personaSlug: string }) {
+function PersonaWorkspace({
+  agentId,
+  personaSlug,
+  onAgentReplaced,
+}: {
+  agentId: string
+  personaSlug: string
+  onAgentReplaced: (newId: string) => void
+}) {
   const chat = useCursorChat({ agentId })
   const [tab, setTab] = useState<'panel' | 'tools'>('panel')
+  const [editing, setEditing] = useState(false)
 
   // Load persona manifest (static).
   const persona = useQuery({
@@ -158,6 +271,7 @@ function PersonaWorkspace({ agentId, personaSlug }: { agentId: string; personaSl
           loading={persona.isLoading}
           agentId={agentId}
           env={env}
+          onEdit={() => setEditing(true)}
         />
         <div className="min-h-0 flex-1">
           <WorkspaceChat chat={chat} />
@@ -199,6 +313,18 @@ function PersonaWorkspace({ agentId, personaSlug }: { agentId: string; personaSl
           )}
         </div>
       </div>
+      {editing && (
+        <EditorOverlay>
+          <AgentEditor
+            agentId={agentId}
+            onClose={() => setEditing(false)}
+            onRespawned={(newId) => {
+              setEditing(false)
+              onAgentReplaced(newId)
+            }}
+          />
+        </EditorOverlay>
+      )}
     </div>
   )
 }
@@ -212,11 +338,13 @@ function PersonaChrome({
   loading,
   agentId,
   env,
+  onEdit,
 }: {
   persona: ServerPersona | undefined
   loading: boolean
   agentId: string
   env: ResolvedEnvState
+  onEdit: () => void
 }) {
   return (
     <header className="flex shrink-0 items-center gap-3 border-b border-line bg-surface/60 px-4 py-2.5 backdrop-blur">
@@ -244,6 +372,15 @@ function PersonaChrome({
           <JwtCountdown expiresAt={env.minExpiresAt} />
         </div>
       </div>
+      <button
+        type="button"
+        onClick={onEdit}
+        className="btn h-7 px-2 text-[11px]"
+        aria-label="Edit agent"
+      >
+        <Pencil className="h-3 w-3" />
+        编辑
+      </button>
     </header>
   )
 }

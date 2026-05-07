@@ -451,77 +451,207 @@ app.get('/agents', (c) => {
   return c.json({ items })
 })
 
+/** Body shared by POST /agents and PUT /agents/:id (recreate). */
+interface AgentCreateBody {
+  runtime?: 'local' | 'cloud'
+  model?: string
+  cwd?: string
+  repoUrl?: string
+  startingRef?: string
+  /** Cloud only — controls whether cursor opens a PR after the agent finishes.
+   *  Dashboard pins this to false (read-only knowledgebase model). */
+  autoCreatePR?: boolean
+  name?: string
+  /**
+   * Cloud only — per-session env vars injected into the cloud agent's shell.
+   * Encrypted at rest by Cursor; deleted with the agent. Use to ship
+   * caller-minted credentials (DATABASE_URL, REDIS_URL, etc.) so the
+   * checked-out repo's code can read them without committing secrets.
+   */
+  envVars?: Record<string, string>
+  /** Local only — Cursor settings layers to load (skills / MCP / sub-agents / hooks). */
+  settingSources?: Array<'project' | 'user' | 'team' | 'mdm' | 'plugins' | 'all'>
+}
+
+/**
+ * Per-agent metadata cached so PUT /agents/:id can reuse the same shape
+ * on respawn and the dashboard can pre-fill an edit form. In-memory only;
+ * a bridge restart wipes the map and edit forms fall back to blank state.
+ */
+interface AgentMeta {
+  runtime: 'local' | 'cloud'
+  modelId: string
+  name?: string
+  // cloud
+  repoUrl?: string
+  startingRef?: string
+  envVars?: Record<string, string>
+  autoCreatePR?: boolean
+  // local
+  cwd?: string
+  settingSources?: Array<'project' | 'user' | 'team' | 'mdm' | 'plugins' | 'all'>
+}
+
+const agentMeta = new Map<string, AgentMeta>()
+
+/** Sanitise an envVars map: strip empty keys/values, return undefined if empty. */
+function sanitiseEnvVars(
+  envVars: Record<string, string> | undefined,
+): Record<string, string> | undefined {
+  if (!envVars || typeof envVars !== 'object') return undefined
+  const cleaned = Object.fromEntries(
+    Object.entries(envVars).filter(
+      ([k, v]) => typeof k === 'string' && k && typeof v === 'string',
+    ),
+  )
+  return Object.keys(cleaned).length ? cleaned : undefined
+}
+
+async function createAgent(
+  apiKey: string,
+  body: AgentCreateBody,
+): Promise<{ agent: SDKAgent; meta: AgentMeta }> {
+  const runtime = body.runtime ?? 'local'
+  const modelId = body.model ?? DEFAULT_MODEL
+  let agent: SDKAgent
+  let meta: AgentMeta
+  if (runtime === 'cloud') {
+    if (!body.repoUrl) throw new Error('cloud runtime 需要 repoUrl')
+    const envVars = sanitiseEnvVars(body.envVars)
+    meta = {
+      runtime: 'cloud',
+      modelId,
+      name: body.name,
+      repoUrl: body.repoUrl,
+      startingRef: body.startingRef,
+      envVars,
+      autoCreatePR: body.autoCreatePR ?? false,
+    }
+    agent = await Agent.create({
+      apiKey,
+      name: meta.name,
+      model: { id: meta.modelId },
+      cloud: {
+        repos: [{ url: meta.repoUrl!, startingRef: meta.startingRef }],
+        autoCreatePR: meta.autoCreatePR,
+        envVars: meta.envVars,
+      },
+    })
+  } else {
+    // Default to loading project + user setting layers so .cursor/skills/,
+    // .cursor/mcp.json, .cursor/agents/*.md, .cursor/hooks.json all become available.
+    const settingSources = body.settingSources ?? ['project', 'user']
+    meta = {
+      runtime: 'local',
+      modelId,
+      name: body.name,
+      cwd: body.cwd ?? DEFAULT_CWD,
+      settingSources,
+    }
+    agent = await Agent.create({
+      apiKey,
+      name: meta.name,
+      model: { id: meta.modelId },
+      local: {
+        cwd: meta.cwd!,
+        settingSources: meta.settingSources!,
+      },
+    })
+  }
+  return { agent, meta }
+}
+
 app.post('/agents', async (c) => {
   const apiKey = getApiKey(c)
   if (!apiKey) return c.json({ error: 'CURSOR_API_KEY missing' }, 401)
-  type CreateBody = {
-    runtime?: 'local' | 'cloud'
-    model?: string
-    cwd?: string
-    repoUrl?: string
-    startingRef?: string
-    autoCreatePR?: boolean
-    name?: string
-    /** Ambient Cursor settings layers to load (skills / MCP / sub-agents / hooks). */
-    settingSources?: Array<'project' | 'user' | 'team' | 'mdm' | 'plugins' | 'all'>
-    /**
-     * Cloud-only: per-session env vars injected into the cloud agent's shell.
-     * Encrypted at rest by Cursor; deleted with the agent. Use to ship
-     * caller-minted credentials (DATABASE_URL, REDIS_URL, etc.) so the
-     * checked-out repo's code can read them without committing secrets.
-     */
-    envVars?: Record<string, string>
-  }
-  let body: CreateBody = {}
+  let body: AgentCreateBody = {}
   try {
-    body = await c.req.json<CreateBody>()
+    body = await c.req.json<AgentCreateBody>()
   } catch {}
-  const runtime = body.runtime ?? 'local'
-  const modelId = body.model ?? DEFAULT_MODEL
-
   try {
-    let agent: SDKAgent
-    if (runtime === 'cloud') {
-      if (!body.repoUrl) return c.json({ error: 'cloud runtime 需要 repoUrl' }, 400)
-      // Light validation: envVars must be a flat string→string map. We
-      // strip empty keys/values to avoid Cursor rejecting the call.
-      const envVars =
-        body.envVars && typeof body.envVars === 'object'
-          ? Object.fromEntries(
-              Object.entries(body.envVars).filter(
-                ([k, v]) => typeof k === 'string' && k && typeof v === 'string',
-              ),
-            )
-          : undefined
-      agent = await Agent.create({
-        apiKey,
-        name: body.name,
-        model: { id: modelId },
-        cloud: {
-          repos: [{ url: body.repoUrl, startingRef: body.startingRef }],
-          autoCreatePR: body.autoCreatePR ?? false,
-          envVars: envVars && Object.keys(envVars).length ? envVars : undefined,
-        },
-      })
-    } else {
-      // Default to loading project + user setting layers so .cursor/skills/,
-      // .cursor/mcp.json, .cursor/agents/*.md, .cursor/hooks.json all become available.
-      const settingSources = body.settingSources ?? ['project', 'user']
-      agent = await Agent.create({
-        apiKey,
-        name: body.name,
-        model: { id: modelId },
-        local: {
-          cwd: body.cwd ?? DEFAULT_CWD,
-          settingSources,
-        },
-      })
-    }
+    const { agent, meta } = await createAgent(apiKey, body)
     agents.set(agent.agentId, agent)
-    return c.json({ agentId: agent.agentId, model: agent.model, runtime })
+    agentMeta.set(agent.agentId, meta)
+    return c.json({
+      agentId: agent.agentId,
+      model: agent.model,
+      runtime: meta.runtime,
+      meta,
+    })
   } catch (err) {
-    return c.json({ error: String(err) }, 500)
+    return c.json({ error: err instanceof Error ? err.message : String(err) }, 500)
   }
+})
+
+/**
+ * Recreate an agent with new settings (repo, envVars, model, name).
+ *
+ * The Cursor SDK doesn't expose in-place edits for cloud agents (cloud
+ * sandbox is bound to its repo + envVars at creation), so this endpoint
+ * disposes the old agent and spawns a fresh one. The new agent gets a
+ * brand new `agentId` — clients must replace any cached id with the
+ * returned `agentId`. Conversation history does NOT carry over.
+ *
+ * Body merges over the prior meta: omit a field to keep the old value.
+ */
+app.put('/agents/:id', async (c) => {
+  const apiKey = getApiKey(c)
+  if (!apiKey) return c.json({ error: 'CURSOR_API_KEY missing' }, 401)
+  const id = c.req.param('id')
+  const oldAgent = agents.get(id)
+  if (!oldAgent) return c.json({ error: 'agent not found' }, 404)
+  const prior = agentMeta.get(id)
+  let body: Partial<AgentCreateBody> = {}
+  try {
+    body = await c.req.json<Partial<AgentCreateBody>>()
+  } catch {}
+
+  // Merge prior meta + new body. Missing key keeps the prior value.
+  const merged: AgentCreateBody = {
+    runtime: body.runtime ?? prior?.runtime,
+    model: body.model ?? prior?.modelId,
+    name: body.name ?? prior?.name,
+    repoUrl: body.repoUrl ?? prior?.repoUrl,
+    startingRef: body.startingRef ?? prior?.startingRef,
+    envVars: body.envVars ?? prior?.envVars,
+    autoCreatePR: body.autoCreatePR ?? prior?.autoCreatePR,
+    cwd: body.cwd ?? prior?.cwd,
+    settingSources: body.settingSources ?? prior?.settingSources,
+  }
+
+  let next: { agent: SDKAgent; meta: AgentMeta }
+  try {
+    next = await createAgent(apiKey, merged)
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : String(err) }, 500)
+  }
+
+  // Best-effort dispose old agent only after the new one is up.
+  try {
+    await oldAgent[Symbol.asyncDispose]()
+  } catch (err) {
+    console.warn('[cursor-bridge] dispose old agent on PUT failed', err)
+  }
+  agents.delete(id)
+  agentMeta.delete(id)
+
+  agents.set(next.agent.agentId, next.agent)
+  agentMeta.set(next.agent.agentId, next.meta)
+  return c.json({
+    previousAgentId: id,
+    agentId: next.agent.agentId,
+    model: next.agent.model,
+    runtime: next.meta.runtime,
+    meta: next.meta,
+  })
+})
+
+/** Read back the meta for an agent (so clients can pre-fill an edit form). */
+app.get('/agents/:id/meta', (c) => {
+  const id = c.req.param('id')
+  const meta = agentMeta.get(id)
+  if (!meta) return c.json({ error: 'agent meta not found' }, 404)
+  return c.json({ agentId: id, meta })
 })
 
 app.delete('/agents/:id', async (c) => {
@@ -534,6 +664,7 @@ app.delete('/agents/:id', async (c) => {
     console.warn('[cursor-bridge] dispose failed', err)
   }
   agents.delete(id)
+  agentMeta.delete(id)
   return c.json({ disposed: id })
 })
 

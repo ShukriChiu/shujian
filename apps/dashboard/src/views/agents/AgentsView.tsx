@@ -1,22 +1,22 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { useMemo, useState } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
+  ArrowRight,
   Bot,
-  ChevronRight,
   Cloud,
   Cpu,
   Loader2,
+  Pencil,
   Plus,
   Search,
   Send,
   Trash2,
   X,
 } from 'lucide-react'
-import { Conversation } from './conversation/Conversation'
 import { PersonaLaunchWizard } from './wizard/PersonaLaunchWizard'
+import { AgentEditor } from './AgentEditor'
 import { agentApi, cursorApi, type AgentDto } from '@/lib/api'
-import { useVaults } from '@/lib/useVaults'
 import { cn } from '@/lib/utils'
 import { PageHeader } from '@/components/PageHeader'
 import { EmptyState } from '@/components/EmptyState'
@@ -162,7 +162,11 @@ export function AgentsView() {
                 }}
               />
             ) : selected ? (
-              <AgentRail agent={selected} onClose={() => selectId(null)} />
+              <AgentRail
+                agent={selected}
+                onClose={() => selectId(null)}
+                onAgentReplaced={(newId) => selectId(makeId('cursor', newId))}
+              />
             ) : null}
           </aside>
         )}
@@ -394,7 +398,15 @@ function KindPill({ kind }: { kind: AgentKind }) {
 
 // — RAILS —
 
-function AgentRail({ agent, onClose }: { agent: UnifiedAgent; onClose: () => void }) {
+function AgentRail({
+  agent,
+  onClose,
+  onAgentReplaced,
+}: {
+  agent: UnifiedAgent
+  onClose: () => void
+  onAgentReplaced: (newAgentId: string) => void
+}) {
   return (
     <div className="flex h-full flex-col animate-slide-rail">
       <div className="flex h-[var(--topbar-h)] items-center justify-between border-b border-line px-5">
@@ -416,7 +428,11 @@ function AgentRail({ agent, onClose }: { agent: UnifiedAgent; onClose: () => voi
         </button>
       </div>
       <div className="flex min-h-0 flex-1 flex-col">
-        {agent.kind === 'local' ? <LocalRail agent={agent} /> : <CursorRail agent={agent} />}
+        {agent.kind === 'local' ? (
+          <LocalRail agent={agent} />
+        ) : (
+          <CursorRail agent={agent} onAgentReplaced={onAgentReplaced} />
+        )}
       </div>
     </div>
   )
@@ -545,259 +561,90 @@ function LocalRail({ agent }: { agent: UnifiedAgent }) {
   )
 }
 
-function CursorRail({ agent }: { agent: UnifiedAgent }) {
+function CursorRail({ agent, onAgentReplaced }: { agent: UnifiedAgent; onAgentReplaced: (newAgentId: string) => void }) {
   const qc = useQueryClient()
-  const [configOpen, setConfigOpen] = useState(false)
+  const navigate = useNavigate()
+  const [editing, setEditing] = useState(false)
 
   const dispose = useMutation({
     mutationFn: () => cursorApi.dispose(agent.name),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['cursor', 'list'] }),
   })
 
-  return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="shrink-0 border-b border-line">
-        <button
-          type="button"
-          onClick={() => setConfigOpen((v) => !v)}
-          className="flex w-full items-center gap-2 px-5 py-2.5 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-dim transition-colors duration-150 ease-out-quart hover:bg-surface-2 hover:text-ink-muted"
-          aria-expanded={configOpen}
-        >
-          <ChevronRight
-            className={cn(
-              'h-3 w-3 transition-transform duration-150 ease-out-quart',
-              configOpen && 'rotate-90',
-            )}
-          />
-          configuration
-          <span className="ml-2 font-mono normal-case tracking-normal text-ink-muted">
-            {agent.model}
-          </span>
-          <span className="pill pill-muted ml-auto normal-case tracking-normal">cursor cloud</span>
-        </button>
-        {configOpen && (
-          <div className="space-y-2.5 border-t border-line bg-surface/50 px-5 py-4 animate-block-in">
-            <KV label="agent id" value={agent.name} mono />
-            <KV label="model" value={agent.model} mono />
-            {agent.repoUrl && <KV label="repo" value={agent.repoUrl} mono />}
-            <KV label="provider" value="cursor cloud" mono />
-            <div className="flex justify-end pt-1">
-              <button
-                onClick={() => dispose.mutate()}
-                disabled={dispose.isPending}
-                className="btn btn-ghost h-7 px-2 text-xs hover:text-bad"
-              >
-                <Trash2 className="h-3 w-3" />
-                {dispose.isPending ? 'Disposing' : 'Dispose'}
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-      <div className="min-h-0 flex-1">
-        <Conversation agentId={agent.name} repoLabel={agent.repoUrl} />
-      </div>
-    </div>
-  )
-}
+  if (editing) {
+    return (
+      <AgentEditor
+        agentId={agent.name}
+        onClose={() => setEditing(false)}
+        onRespawned={(newId) => {
+          setEditing(false)
+          onAgentReplaced(newId)
+        }}
+      />
+    )
+  }
 
-// — NEW AGENT —
-
-function NewAgentRail({
-  onClose,
-  onCreated,
-}: {
-  onClose: () => void
-  onCreated: (id: string) => void
-}) {
-  const qc = useQueryClient()
-  const vaults = useVaults()
-  const repos = useQuery({
-    queryKey: ['cursor', 'repos'],
-    queryFn: cursorApi.repos,
-    retry: 0,
-    staleTime: 60_000,
-  })
-  const models = useQuery({
-    queryKey: ['cursor', 'models'],
-    queryFn: cursorApi.models,
-    retry: 0,
-  })
-  const me = useQuery({ queryKey: ['cursor', 'me'], queryFn: cursorApi.me, retry: 0 })
-
-  const [name, setName] = useState('')
-  const [model, setModel] = useState('claude-4.6-sonnet')
-  const [repoUrl, setRepoUrl] = useState('')
-  const [startingRef, setStartingRef] = useState('main')
-  const [autoCreatePR, setAutoCreatePR] = useState(true)
-  const [vaultId, setVaultId] = useState('')
-  const nameRef = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    nameRef.current?.focus()
-  }, [])
-
-  const create = useMutation({
-    mutationFn: () => {
-      const vault = vaultId ? vaults.find((v) => v.id === vaultId) : undefined
-      const envVars = vault ? { ...vault.envs } : undefined
-      return cursorApi.create({
-        runtime: 'cloud',
-        model,
-        repoUrl: repoUrl.trim() || undefined,
-        startingRef: startingRef.trim() || undefined,
-        autoCreatePR,
-        name: name.trim() || undefined,
-        envVars,
-      })
-    },
-    onSuccess: (a) => {
-      qc.invalidateQueries({ queryKey: ['cursor', 'list'] })
-      onCreated(makeId('cursor', a.agentId))
-    },
-  })
-
-  const canSubmit = !create.isPending && (me.data?.apiKeyName || me.isLoading)
-
-  function onSubmit(e: FormEvent) {
-    e.preventDefault()
-    create.mutate()
+  function openInWorkspace() {
+    const qs = new URLSearchParams()
+    qs.set('agent', agent.name)
+    navigate(`/workspace?${qs.toString()}`)
   }
 
   return (
-    <div className="flex h-full flex-col animate-slide-rail">
-      <div className="flex h-[var(--topbar-h)] items-center justify-between border-b border-line px-5">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-ink">New Cloud Agent</span>
+    <div className="flex h-full min-h-0 flex-col overflow-y-auto scroll-thin">
+      <section className="space-y-3 border-b border-line p-5">
+        <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-ink-dim">
+          Configuration
         </div>
-        <button onClick={onClose} className="btn btn-ghost h-7 w-7 px-0" aria-label="Close">
-          <X className="h-3.5 w-3.5" />
+        <KV label="agent id" value={agent.name} mono />
+        <KV label="model" value={agent.model} mono />
+        {agent.repoUrl && <KV label="repo" value={agent.repoUrl} mono />}
+        <KV label="provider" value="cursor cloud · 只读" mono />
+      </section>
+
+      <section className="space-y-2 border-b border-line p-5">
+        <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-ink-dim">
+          Actions
+        </div>
+        <button
+          type="button"
+          onClick={openInWorkspace}
+          className="btn btn-primary w-full justify-center"
+        >
+          打开聊天 (workspace)
+          <ArrowRight className="h-3.5 w-3.5" />
         </button>
-      </div>
-      <form onSubmit={onSubmit} className="flex flex-1 flex-col">
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5 scroll-thin">
-          <Field label="名称（可选）" hint="留空 Cursor 会自动起一个">
-            <input
-              ref={nameRef}
-              className="input"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="register-billing-fix"
-            />
-          </Field>
+        <button
+          type="button"
+          onClick={() => setEditing(true)}
+          className="btn w-full justify-center"
+        >
+          <Pencil className="h-3.5 w-3.5" />
+          编辑 repo / vault / 模型
+        </button>
+        <button
+          type="button"
+          onClick={() => dispose.mutate()}
+          disabled={dispose.isPending}
+          className="btn btn-ghost w-full justify-center hover:text-bad"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+          {dispose.isPending ? 'Disposing…' : 'Dispose'}
+        </button>
+      </section>
 
-          <Field label="模型">
-            <select className="select" value={model} onChange={(e) => setModel(e.target.value)}>
-              {(models.data ?? [{ id: 'claude-4.6-sonnet', displayName: 'Claude 4.6 Sonnet' }]).map(
-                (m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.displayName ?? m.id}
-                  </option>
-                ),
-              )}
-            </select>
-          </Field>
-
-          <Field label="仓库 URL" hint="从已授权列表选，或粘贴一个">
-            <input
-              className="input"
-              value={repoUrl}
-              onChange={(e) => setRepoUrl(e.target.value)}
-              placeholder="https://github.com/..."
-              list="cursor-repos"
-            />
-            <datalist id="cursor-repos">
-              {(repos.data?.items ?? []).map((r) => (
-                <option key={r.url} value={r.url} />
-              ))}
-            </datalist>
-          </Field>
-
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="起始 ref">
-              <input
-                className="input"
-                value={startingRef}
-                onChange={(e) => setStartingRef(e.target.value)}
-                placeholder="main"
-              />
-            </Field>
-            <Field label="开 PR" hint="结束时自动开 pull request">
-              <label className="flex h-9 items-center gap-2 rounded-md border border-line bg-surface px-3 text-sm">
-                <input
-                  type="checkbox"
-                  checked={autoCreatePR}
-                  onChange={(e) => setAutoCreatePR(e.target.checked)}
-                  className="h-3.5 w-3.5 accent-[oklch(var(--accent-l)_var(--accent-c)_var(--accent-h))]"
-                />
-                <span className="text-ink-muted">auto PR</span>
-              </label>
-            </Field>
-          </div>
-
-          <Field
-            label="环境变量 vault（可选）"
-            hint={
-              vaults.length === 0 ? (
-                <span className="text-ink-dim">还没有 vault, 在 /vaults 创建后回来选</span>
-              ) : (
-                `${vaults.length} 个可选`
-              )
-            }
-          >
-            <select className="select" value={vaultId} onChange={(e) => setVaultId(e.target.value)}>
-              <option value="">— 不注入 envVars —</option>
-              {vaults.map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.name} ({Object.keys(v.envs).length} keys)
-                </option>
-              ))}
-            </select>
-          </Field>
-
-          {!me.isLoading && !me.data?.apiKeyName && (
-            <div
-              className="rounded-md px-3 py-2 text-xs"
-              style={{
-                border: '1px solid oklch(var(--warn-l) var(--warn-c) var(--warn-h) / 0.42)',
-                background: 'var(--warn-tint)',
-                color: 'oklch(var(--warn-l) var(--warn-c) var(--warn-h))',
-              }}
-            >
-              cursor-bridge 没看到 Cursor API Key, 去{' '}
-              <a className="underline" href="/settings#bridges">
-                Settings → Bridges
-              </a>{' '}
-              填一下。
-            </div>
-          )}
-
-          {create.error && (
-            <div
-              className="rounded-md px-3 py-2 text-xs"
-              style={{
-                border: '1px solid oklch(var(--bad-l) var(--bad-c) var(--bad-h) / 0.42)',
-                background: 'var(--bad-tint)',
-                color: 'oklch(var(--bad-l) var(--bad-c) var(--bad-h))',
-              }}
-            >
-              {(create.error as Error).message}
-            </div>
-          )}
-        </div>
-        <div className="flex items-center justify-end gap-2 border-t border-line bg-surface px-5 py-3">
-          <button type="button" onClick={onClose} className="btn">
-            取消
-          </button>
-          <button type="submit" disabled={!canSubmit} className="btn btn-primary">
-            {create.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-            创建并打开
-          </button>
-        </div>
-      </form>
+      <section className="p-5 text-[11.5px] leading-[1.6] text-ink-muted">
+        Cloud agent 的对话已迁移到{' '}
+        <button onClick={openInWorkspace} className="text-accent underline-offset-2 hover:underline">
+          /workspace
+        </button>
+        ，跟工具产物面板 / persona capability 面板放在一起。这里只保留配置 + 编辑入口。
+      </section>
     </div>
   )
 }
+
+// — Shared bits —
 
 function Field({
   label,

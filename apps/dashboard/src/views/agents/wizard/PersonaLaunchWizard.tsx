@@ -49,6 +49,7 @@ import {
 import { cursorApi } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { useVaults } from '@/lib/useVaults'
+import { loadVault } from '@/lib/vaults'
 import {
   serverPersonas,
   type CursorSettings,
@@ -78,20 +79,24 @@ export function PersonaLaunchWizard({ onClose, onCreated }: Props) {
   const [step, setStep] = useState<Step>('pick')
   const [pickedSlug, setPickedSlug] = useState<string | null>(null)
   // wizard's local override of cursor settings — starts from persona,
-  // user can edit name/repo/ref/autoPR/model.
+  // user can edit name/repo/ref/model/vault.
+  // autoCreatePR is force-pinned to false: dashboard cloud agents are
+  // read-only knowledgebase consumers (see KNOWLEDGEBASE_SPEC §1) and
+  // never push back to the repo.
   const [overrides, setOverrides] = useState<{
     name: string
     model: string
     repoUrl: string
     startingRef: string
-    autoCreatePR: boolean
+    /** vault id from `useVaults()`; empty = no envVars injection. */
+    vaultId: string
     toWorkspace: boolean
   }>({
     name: '',
     model: '',
     repoUrl: '',
     startingRef: 'main',
-    autoCreatePR: true,
+    vaultId: '',
     toWorkspace: true,
   })
 
@@ -108,10 +113,6 @@ export function PersonaLaunchWizard({ onClose, onCreated }: Props) {
       model: cur.model || (picked.cursor_settings.model as string) || 'claude-4.6-sonnet',
       repoUrl: cur.repoUrl || (picked.cursor_settings.repo_url as string) || '',
       startingRef: cur.startingRef || (picked.cursor_settings.starting_ref as string) || 'main',
-      autoCreatePR:
-        typeof picked.cursor_settings.auto_create_pr === 'boolean'
-          ? (picked.cursor_settings.auto_create_pr as boolean)
-          : cur.autoCreatePR,
     }))
   }, [picked])
 
@@ -427,7 +428,8 @@ interface OverrideState {
   model: string
   repoUrl: string
   startingRef: string
-  autoCreatePR: boolean
+  /** vault id from `useVaults()`; empty = no envVars injection. */
+  vaultId: string
   toWorkspace: boolean
 }
 
@@ -600,6 +602,7 @@ function LaunchStep({
   onCreated: (unifiedId: string, ctx: { personaSlug?: string; toWorkspace: boolean }) => void
 }) {
   const qc = useQueryClient()
+  const vaults = useVaults()
   const [phase, setPhase] = useState<'idle' | 'issuing' | 'launching' | 'recording' | 'done' | 'error'>('idle')
   const [error, setError] = useState<string | null>(null)
   const startedRef = useRef(false)
@@ -616,7 +619,25 @@ function LaunchStep({
           bridge_name: 'cursor-bridge',
         })
         if (cancelled) return
-        const envVars = envToRecord(issuance.env)
+        const personaEnv = envToRecord(issuance.env)
+        // Vault envs live on the backend now, encrypted at rest. The
+        // `useVaults()` cache only carries metadata + already-loaded
+        // bundles; force a load (or refresh) before launch so we
+        // never silently drop credentials due to a cold cache.
+        let vaultEnv: Record<string, string> = {}
+        if (overrides.vaultId) {
+          const cached = vaults.find((v) => v.id === overrides.vaultId)
+          if (cached?.envsLoaded) {
+            vaultEnv = cached.envs
+          } else {
+            const loaded = await loadVault(overrides.vaultId)
+            if (loaded) vaultEnv = loaded.envs
+          }
+        }
+        // Vault envs win on key collision — vaults are the user's
+        // explicit "I want this for THIS launch" overlay; persona-issued
+        // env is the baseline. Document this in the audit log.
+        const envVars = { ...personaEnv, ...vaultEnv }
 
         setPhase('launching')
         const cs = mergeCursorSettings(picked.cursor_settings, overrides)
@@ -626,7 +647,7 @@ function LaunchStep({
           name: overrides.name.trim() || `${picked.slug}-${Date.now().toString(36).slice(-4)}`,
           repoUrl: cs.repo_url || undefined,
           startingRef: cs.starting_ref || undefined,
-          autoCreatePR: cs.auto_create_pr ?? true,
+          autoCreatePR: false,
           settingSources: cs.setting_sources as Array<'project' | 'user' | 'team' | 'mdm' | 'plugins' | 'all'> | undefined,
           envVars,
         })
@@ -764,9 +785,11 @@ function LegacyParamsStep({
   return (
     <div className="space-y-4 p-5">
       <p className="text-[12px] leading-[1.55] text-ink-muted">
-        没选 persona, 走原 envVars vault 路径。Vault 在
-        <a href="/vaults" className="ml-1 text-accent underline">/vaults</a>
-        管理。
+        没选 persona —— 仓库 + vault 自助配置。仓库**只读**用作业务上下文（
+        <a href="https://github.com/ShukriChiu/shujian/blob/main/personas/KNOWLEDGEBASE_SPEC.md" className="text-accent underline" target="_blank" rel="noopener noreferrer">
+          KNOWLEDGEBASE_SPEC
+        </a>
+        ），vault 在 <a href="/vaults" className="text-accent underline">/vaults</a> 管理。
       </p>
       <CursorOverridesForm overrides={overrides} setOverrides={setOverrides} legacy />
     </div>
@@ -795,16 +818,23 @@ function LegacyLaunchStep({
     ;(async () => {
       try {
         setPhase('launching')
-        // legacy vault selector wasn't surfaced in this wizard yet; respect
-        // first vault if present (matches old NewAgentRail default-empty behavior).
-        const envVars = vaults[0]?.envs
+        let envVars: Record<string, string> | undefined
+        if (overrides.vaultId) {
+          const cached = vaults.find((v) => v.id === overrides.vaultId)
+          if (cached?.envsLoaded) {
+            envVars = cached.envs
+          } else {
+            const loaded = await loadVault(overrides.vaultId)
+            if (loaded) envVars = loaded.envs
+          }
+        }
         const ag = await cursorApi.create({
           runtime: 'cloud',
           model: overrides.model || 'claude-4.6-sonnet',
           name: overrides.name.trim() || undefined,
           repoUrl: overrides.repoUrl.trim() || undefined,
           startingRef: overrides.startingRef.trim() || undefined,
-          autoCreatePR: overrides.autoCreatePR,
+          autoCreatePR: false,
           envVars,
         })
         if (cancelled) return
@@ -908,27 +938,18 @@ function CursorOverridesForm({
           ))}
         </datalist>
       </Field>
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="起始 ref">
-          <input
-            className="input"
-            value={overrides.startingRef}
-            onChange={(e) => setOverrides((cur) => ({ ...cur, startingRef: e.target.value }))}
-            placeholder="main"
-          />
-        </Field>
-        <Field label="开 PR" hint="结束时自动开 pull request">
-          <label className="flex h-9 items-center gap-2 rounded-md border border-line bg-surface px-3 text-sm">
-            <input
-              type="checkbox"
-              checked={overrides.autoCreatePR}
-              onChange={(e) => setOverrides((cur) => ({ ...cur, autoCreatePR: e.target.checked }))}
-              className="h-3.5 w-3.5 accent-[oklch(var(--accent-l)_var(--accent-c)_var(--accent-h))]"
-            />
-            <span className="text-ink-muted">auto PR</span>
-          </label>
-        </Field>
-      </div>
+      <Field label="起始 ref" hint="只读：cloud agent 跑完即丢分支，不会推回 GitHub">
+        <input
+          className="input"
+          value={overrides.startingRef}
+          onChange={(e) => setOverrides((cur) => ({ ...cur, startingRef: e.target.value }))}
+          placeholder="main"
+        />
+      </Field>
+      <VaultPicker
+        vaultId={overrides.vaultId}
+        onChange={(id) => setOverrides((cur) => ({ ...cur, vaultId: id }))}
+      />
       <Field label="启动后跳转" hint="Workspace 适合数据分析, agents 适合写码">
         <div className="flex items-center gap-2">
           <SegOption
@@ -1017,6 +1038,45 @@ function mergeCursorSettings(base: CursorSettings, overrides: OverrideState): Cu
     model: overrides.model || (base.model as string) || 'claude-4.6-sonnet',
     repo_url: overrides.repoUrl || (base.repo_url as string) || undefined,
     starting_ref: overrides.startingRef || (base.starting_ref as string) || 'main',
-    auto_create_pr: overrides.autoCreatePR,
+    // dashboard cloud agents are read-only knowledgebase consumers — pin
+    // PR creation off regardless of what the persona spec says.
+    auto_create_pr: false,
   }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Vault picker (shared between persona and legacy paths)                      */
+/* -------------------------------------------------------------------------- */
+
+function VaultPicker({
+  vaultId,
+  onChange,
+}: {
+  vaultId: string
+  onChange: (id: string) => void
+}) {
+  const vaults = useVaults()
+  return (
+    <Field
+      label="环境变量 vault"
+      hint={
+        vaults.length === 0 ? (
+          <span className="text-ink-dim">
+            还没有 vault, 在 <a href="/vaults" className="underline">/vaults</a> 创建后回来选
+          </span>
+        ) : (
+          `${vaults.length} 个可选 · 注入到 cloud sandbox 的 envVars`
+        )
+      }
+    >
+      <select className="select" value={vaultId} onChange={(e) => onChange(e.target.value)}>
+        <option value="">— 不注入 envVars —</option>
+        {vaults.map((v) => (
+          <option key={v.id} value={v.id}>
+            {v.name} ({v.envKeys?.length ?? Object.keys(v.envs).length} keys)
+          </option>
+        ))}
+      </select>
+    </Field>
+  )
 }
