@@ -20,9 +20,11 @@ mod middleware;
 mod models;
 mod seed;
 mod state;
+mod vault;
 
 use crate::config::Config;
 use crate::state::AppState;
+use crate::vault::KekProvider;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -34,7 +36,8 @@ async fn main() -> Result<()> {
     let db = db::connect(&cfg.database_url).await?;
     seed::ensure_seed(&db, &cfg).await?;
 
-    let state = AppState::new(db, cfg.clone());
+    let kek = KekProvider::new(db.clone())?;
+    let state = AppState::new(db, cfg.clone(), kek);
 
     let app = build_router(state, &cfg);
 
@@ -61,6 +64,8 @@ fn build_router(state: AppState, cfg: &Config) -> Router {
         .route("/readyz", get(handlers::health::readyz))
         .nest("/v1/auth", auth_routes())
         .nest("/v1/tenants", tenant_routes())
+        .nest("/v1/vault", vault_routes())
+        .nest("/v1/personas", persona_routes())
         .with_state(state)
         .layer(SetRequestIdLayer::x_request_id(MakeRequestUuid))
         .layer(PropagateRequestIdLayer::x_request_id())
@@ -89,6 +94,34 @@ fn tenant_routes() -> Router<AppState> {
 
 async fn remove_member_stub() -> error::AppResult<()> {
     Err(error::AppError::bad_request("not implemented yet"))
+}
+
+fn vault_routes() -> Router<AppState> {
+    use vault::handlers as v;
+    Router::new()
+        // Secrets are write-only over HTTP — list / get returns metadata only,
+        // delete returns the freed name. The plaintext value never leaves
+        // the backend except via the persona launch flow.
+        .route("/secrets", post(v::upsert_secret).get(v::list_secrets))
+        .route(
+            "/secrets/{name}",
+            get(v::get_secret_metadata).delete(v::delete_secret),
+        )
+        .route(
+            "/operator-refs",
+            post(v::create_operator_ref).get(v::list_operator_refs),
+        )
+        .route("/operator-refs/{id}", delete(v::delete_operator_ref))
+        .route("/scopes", post(v::upsert_scope).get(v::list_scopes))
+        .route("/scopes/{name}", delete(v::delete_scope))
+        .route("/_admin/kek", get(v::kek_status))
+}
+
+fn persona_routes() -> Router<AppState> {
+    use vault::handlers as v;
+    Router::new()
+        .route("/", post(v::upsert_persona).get(v::list_personas))
+        .route("/{slug}", delete(v::delete_persona))
 }
 
 fn build_cors(cfg: &Config) -> CorsLayer {

@@ -41,6 +41,13 @@ rand_core = { version = "0.9", features = ["std"] }
 sha2 = "0.10"
 hex = "0.4"
 base64 = "0.22"
+# AES-256-GCM for vault secret encryption (DEK + KEK envelope).
+aes-gcm = { version = "0.10", features = ["aes", "std"] }
+
+# HTTP client for outbound calls (onion-agent mint-token in P3, future
+# AWS KMS Decrypt API, etc.). Vault KEK itself is loaded from env at boot
+# so reqwest is not on the secret read path.
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 
 # Errors / logs
 anyhow = "1"
