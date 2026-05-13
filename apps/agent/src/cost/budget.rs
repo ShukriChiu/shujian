@@ -54,40 +54,40 @@ impl BudgetEnforcer {
             };
         }
 
-        if let Some(max_failures) = self.session_budget.max_consecutive_failures {
-            if meter.consecutive_failures() >= max_failures {
-                return BudgetVerdict::Exceeded {
-                    reason: format!(
-                        "{} consecutive failures (limit: {})",
-                        meter.consecutive_failures(),
-                        max_failures
-                    ),
-                };
-            }
+        if let Some(max_failures) = self.session_budget.max_consecutive_failures
+            && meter.consecutive_failures() >= max_failures
+        {
+            return BudgetVerdict::Exceeded {
+                reason: format!(
+                    "{} consecutive failures (limit: {})",
+                    meter.consecutive_failures(),
+                    max_failures
+                ),
+            };
         }
 
-        if let Some(max_iterations) = self.session_budget.max_loop_iterations {
-            if meter.step_count() >= max_iterations {
-                return BudgetVerdict::Exceeded {
-                    reason: format!(
-                        "{} iterations reached (limit: {})",
-                        meter.step_count(),
-                        max_iterations
-                    ),
-                };
-            }
+        if let Some(max_iterations) = self.session_budget.max_loop_iterations
+            && meter.step_count() >= max_iterations
+        {
+            return BudgetVerdict::Exceeded {
+                reason: format!(
+                    "{} iterations reached (limit: {})",
+                    meter.step_count(),
+                    max_iterations
+                ),
+            };
         }
 
-        if let Some(max_duration) = self.session_budget.max_duration_ms {
-            if meter.elapsed_ms() >= max_duration {
-                return BudgetVerdict::Exceeded {
-                    reason: format!(
-                        "Duration {}ms exceeded limit {}ms",
-                        meter.elapsed_ms(),
-                        max_duration
-                    ),
-                };
-            }
+        if let Some(max_duration) = self.session_budget.max_duration_ms
+            && meter.elapsed_ms() >= max_duration
+        {
+            return BudgetVerdict::Exceeded {
+                reason: format!(
+                    "Duration {}ms exceeded limit {}ms",
+                    meter.elapsed_ms(),
+                    max_duration
+                ),
+            };
         }
 
         let total_cost = meter.total_cost_usd().await;
@@ -107,8 +107,8 @@ impl BudgetEnforcer {
             if pct >= self.session_budget.warning_threshold {
                 let warning_key = format!("cost_{}", (pct * 10.0) as u32);
                 let mut warnings = self.warning_issued.lock().await;
-                if !warnings.contains_key(&warning_key) {
-                    warnings.insert(warning_key, true);
+                if let std::collections::hash_map::Entry::Vacant(e) = warnings.entry(warning_key) {
+                    e.insert(true);
                     return BudgetVerdict::Warning {
                         usage_pct: pct * 100.0,
                         message: format!(
@@ -136,8 +136,8 @@ impl BudgetEnforcer {
             if pct >= self.session_budget.warning_threshold {
                 let warning_key = format!("tokens_{}", (pct * 10.0) as u32);
                 let mut warnings = self.warning_issued.lock().await;
-                if !warnings.contains_key(&warning_key) {
-                    warnings.insert(warning_key, true);
+                if let std::collections::hash_map::Entry::Vacant(e) = warnings.entry(warning_key) {
+                    e.insert(true);
                     return BudgetVerdict::Warning {
                         usage_pct: pct * 100.0,
                         message: format!(
@@ -181,19 +181,19 @@ impl BudgetEnforcer {
     async fn check_global_limits(&self, day_key: &str, month_key: &str) -> bool {
         if let Some(daily_limit) = self.global_budget.daily_limit_usd {
             let daily = self.daily_costs.lock().await;
-            if let Some(&cost) = daily.get(day_key) {
-                if cost >= daily_limit {
-                    return true;
-                }
+            if let Some(&cost) = daily.get(day_key)
+                && cost >= daily_limit
+            {
+                return true;
             }
         }
 
         if let Some(monthly_limit) = self.global_budget.monthly_limit_usd {
             let monthly = self.monthly_costs.lock().await;
-            if let Some(&cost) = monthly.get(month_key) {
-                if cost >= monthly_limit {
-                    return true;
-                }
+            if let Some(&cost) = monthly.get(month_key)
+                && cost >= monthly_limit
+            {
+                return true;
             }
         }
 

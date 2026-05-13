@@ -113,15 +113,15 @@ impl CostReporter {
         let filtered: Vec<&SessionRecord> = sessions
             .iter()
             .filter(|s| {
-                if let Some(since) = since {
-                    if s.start_time < since {
-                        return false;
-                    }
+                if let Some(since) = since
+                    && s.start_time < since
+                {
+                    return false;
                 }
-                if let Some(until) = until {
-                    if s.end_time > until {
-                        return false;
-                    }
+                if let Some(until) = until
+                    && s.end_time > until
+                {
+                    return false;
                 }
                 true
             })
@@ -206,12 +206,12 @@ impl CostReporter {
         let mut dir = dir;
         while let Ok(Some(entry)) = dir.next_entry().await {
             let path = entry.path();
-            if path.extension().map_or(false, |e| e == "jsonl") {
-                if let Ok(content) = tokio::fs::read_to_string(&path).await {
-                    for line in content.lines() {
-                        if let Ok(record) = serde_json::from_str::<SessionRecord>(line) {
-                            records.push(record);
-                        }
+            if path.extension().is_some_and(|e| e == "jsonl")
+                && let Ok(content) = tokio::fs::read_to_string(&path).await
+            {
+                for line in content.lines() {
+                    if let Ok(record) = serde_json::from_str::<SessionRecord>(line) {
+                        records.push(record);
                     }
                 }
             }

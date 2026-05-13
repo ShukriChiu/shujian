@@ -198,7 +198,7 @@ impl PermissionEngine {
 
     fn default_verdict(
         &self,
-        mode: PermissionMode,
+        _mode: PermissionMode,
         request: &PermissionRequest,
     ) -> PermissionVerdict {
         match request.category {
@@ -234,7 +234,7 @@ impl PermissionEngine {
 
         config.protected_dirs.iter().any(|dir| {
             let dir_clean = dir.trim_start_matches("./").trim_start_matches('/');
-            segments.first().map_or(false, |first| *first == dir_clean)
+            segments.first().is_some_and(|first| *first == dir_clean)
         })
     }
 

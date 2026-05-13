@@ -102,7 +102,7 @@ pub async fn trigger_dream(store: &AppStateStore, workspace_dir: &Path) -> Resul
 
 async fn finish_dream(store: &AppStateStore, task_id: &str, files_updated: Vec<String>) {
     let tid = task_id.to_string();
-    let files = files_updated.clone();
+    let _files = files_updated.clone();
     store
         .update_and_emit(
             move |state| {

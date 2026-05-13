@@ -168,16 +168,16 @@ impl AppConfig {
     }
 
     pub fn resolve_llm(&self, agent: &AgentConfig) -> ResolvedLlm {
-        if let Some(cat_name) = &agent.model_category {
-            if let Some(cat) = self.model_categories.iter().find(|c| c.name == *cat_name) {
-                return ResolvedLlm {
-                    provider: cat.provider.clone(),
-                    model: cat.model.clone(),
-                    base_url: cat.base_url.clone().or(self.llm.base_url.clone()),
-                    api_key_env: cat.api_key_env.clone().or(self.llm.api_key_env.clone()),
-                    max_rounds: cat.max_rounds.unwrap_or(self.llm.max_rounds),
-                };
-            }
+        if let Some(cat_name) = &agent.model_category
+            && let Some(cat) = self.model_categories.iter().find(|c| c.name == *cat_name)
+        {
+            return ResolvedLlm {
+                provider: cat.provider.clone(),
+                model: cat.model.clone(),
+                base_url: cat.base_url.clone().or(self.llm.base_url.clone()),
+                api_key_env: cat.api_key_env.clone().or(self.llm.api_key_env.clone()),
+                max_rounds: cat.max_rounds.unwrap_or(self.llm.max_rounds),
+            };
         }
         ResolvedLlm {
             provider: self.llm.provider.clone(),

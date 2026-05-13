@@ -1,10 +1,9 @@
-use std::sync::Arc;
 use tokio::sync::oneshot;
 use tokio::time::{Duration, timeout};
 
 use super::types::{
-    HitlConfig, InteractionResponse, InteractionResult, InteractionStatus, InteractionType,
-    PendingInteraction, Question,
+    HitlConfig, InteractionResponse, InteractionResult, InteractionType, PendingInteraction,
+    Question,
 };
 
 /// The agent-side handle: call `wait()` to block until the user responds.
@@ -81,6 +80,7 @@ pub struct InteractionResponder {
 impl InteractionResponder {
     /// Send the user's response, unblocking the agent.
     /// Returns Err if the agent has already moved on (dropped the receiver).
+    #[allow(clippy::result_large_err)]
     pub fn respond(self, response: InteractionResponse) -> Result<(), InteractionResponse> {
         self.tx.send(response)
     }
@@ -171,6 +171,7 @@ pub fn ask_plan_approval(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::hitl::types::InteractionStatus;
     use std::collections::HashMap;
 
     #[tokio::test]

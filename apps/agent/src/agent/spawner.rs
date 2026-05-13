@@ -45,7 +45,7 @@ impl AgentSpawner {
         &self,
         agent_type: &str,
         task_description: &str,
-        parent_task_id: Option<&str>,
+        _parent_task_id: Option<&str>,
     ) -> Result<SpawnResult> {
         let def = self
             .agent_registry
@@ -200,12 +200,11 @@ impl AgentSpawner {
             .update_and_emit(
                 move |state| {
                     if let Some(agent) = state.agent_registry.get_mut(&agent_id) {
-                        if let Some(tid) = agent.current_task_id.take() {
-                            if let Some(task) = state.tasks.get_mut(&tid) {
-                                if !task.status.is_terminal() {
-                                    task.mark_killed();
-                                }
-                            }
+                        if let Some(tid) = agent.current_task_id.take()
+                            && let Some(task) = state.tasks.get_mut(&tid)
+                            && !task.status.is_terminal()
+                        {
+                            task.mark_killed();
                         }
                         agent.status = AgentRuntimeStatus::Failed;
                         agent.tasks_failed += 1;

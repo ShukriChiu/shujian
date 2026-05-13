@@ -35,62 +35,46 @@ pub enum AgentSource {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum EffortLevel {
     Min,
     Low,
+    #[default]
     Medium,
     High,
     Max,
 }
 
-impl Default for EffortLevel {
-    fn default() -> Self {
-        Self::Medium
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum MemoryScope {
     User,
+    #[default]
     Project,
     Local,
     None,
 }
 
-impl Default for MemoryScope {
-    fn default() -> Self {
-        Self::Project
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum IsolationMode {
+    #[default]
     None,
     Worktree,
     Container,
 }
 
-impl Default for IsolationMode {
-    fn default() -> Self {
-        Self::None
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum RoleLevel {
+    #[default]
     Operator,
     Analyst,
     Manager,
     Director,
-}
-
-impl Default for RoleLevel {
-    fn default() -> Self {
-        Self::Operator
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

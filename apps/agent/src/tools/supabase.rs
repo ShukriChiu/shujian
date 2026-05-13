@@ -67,16 +67,16 @@ impl Tool for SupabaseQueryTool {
 
         let rows: Value = serde_json::from_str(&text).unwrap_or(json!(text));
 
-        if let Some(arr) = rows.as_array() {
-            if arr.len() > MAX_ROWS_DISPLAY {
-                let truncated: Vec<&Value> = arr.iter().take(MAX_ROWS_DISPLAY).collect();
-                return Ok(format!(
-                    "{}\n...[共 {} 行，只显示前 {}]",
-                    serde_json::to_string_pretty(&truncated)?,
-                    arr.len(),
-                    MAX_ROWS_DISPLAY
-                ));
-            }
+        if let Some(arr) = rows.as_array()
+            && arr.len() > MAX_ROWS_DISPLAY
+        {
+            let truncated: Vec<&Value> = arr.iter().take(MAX_ROWS_DISPLAY).collect();
+            return Ok(format!(
+                "{}\n...[共 {} 行，只显示前 {}]",
+                serde_json::to_string_pretty(&truncated)?,
+                arr.len(),
+                MAX_ROWS_DISPLAY
+            ));
         }
 
         Ok(serde_json::to_string_pretty(&rows).unwrap_or(text))

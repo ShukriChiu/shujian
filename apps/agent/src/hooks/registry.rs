@@ -161,21 +161,12 @@ impl HookRegistry {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct HooksConfig {
     #[serde(default)]
     pub hooks: HashMap<String, Vec<HookMatcherGroup>>,
     #[serde(default)]
     pub disable_all_hooks: bool,
-}
-
-impl Default for HooksConfig {
-    fn default() -> Self {
-        Self {
-            hooks: HashMap::new(),
-            disable_all_hooks: false,
-        }
-    }
 }
 
 fn parse_event_name(name: &str) -> Option<HookEvent> {
@@ -212,12 +203,10 @@ fn matches_regex_simple(pattern: &str, value: &str) -> bool {
             .split('|')
             .any(|p| matches_regex_simple(p.trim(), value));
     }
-    if pattern.ends_with(".*") {
-        let prefix = &pattern[..pattern.len() - 2];
+    if let Some(prefix) = pattern.strip_suffix(".*") {
         return value.starts_with(prefix);
     }
-    if pattern.ends_with('*') {
-        let prefix = &pattern[..pattern.len() - 1];
+    if let Some(prefix) = pattern.strip_suffix('*') {
         return value.starts_with(prefix);
     }
     pattern == value

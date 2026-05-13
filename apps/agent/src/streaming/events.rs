@@ -231,7 +231,7 @@ impl StreamEvent {
     /// Serialize to SSE data format.
     pub fn to_sse_data(&self) -> String {
         let event_name = serde_json::to_value(&self.event_type)
-            .and_then(|v| Ok(v.as_str().unwrap_or("message").to_string()))
+            .map(|v| v.as_str().unwrap_or("message").to_string())
             .unwrap_or_else(|_| "message".into());
 
         let json = serde_json::to_string(self).unwrap_or_default();

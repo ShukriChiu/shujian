@@ -49,7 +49,7 @@ impl TaskStatus {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct TokenUsage {
     pub input_tokens: u64,
     pub output_tokens: u64,
@@ -57,17 +57,6 @@ pub struct TokenUsage {
     pub cache_read_tokens: u64,
     #[serde(default)]
     pub cache_creation_tokens: u64,
-}
-
-impl Default for TokenUsage {
-    fn default() -> Self {
-        Self {
-            input_tokens: 0,
-            output_tokens: 0,
-            cache_read_tokens: 0,
-            cache_creation_tokens: 0,
-        }
-    }
 }
 
 impl TokenUsage {
@@ -118,8 +107,8 @@ pub fn generate_task_id(task_type: TaskType) -> String {
     let uuid_bytes = Uuid::new_v4().into_bytes();
     let mut id = String::with_capacity(9);
     id.push(prefix);
-    for i in 0..8 {
-        let idx = (uuid_bytes[i] as usize) % TASK_ID_ALPHABET.len();
+    for byte in uuid_bytes.iter().take(8) {
+        let idx = (*byte as usize) % TASK_ID_ALPHABET.len();
         id.push(TASK_ID_ALPHABET[idx] as char);
     }
     id

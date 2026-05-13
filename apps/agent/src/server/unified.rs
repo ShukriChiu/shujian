@@ -7,7 +7,6 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tracing::info;
 
 use crate::agent::orchestrator::{Orchestrator, SubTaskResult};
 use crate::audit::logger::AuditLogger;

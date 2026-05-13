@@ -91,22 +91,21 @@ impl AgentEngine {
 
                 if self.discipline.enforce_todo
                     && continuation_count < self.discipline.max_continuation
+                    && let Some(ws) = &self.workspace
                 {
-                    if let Some(ws) = &self.workspace {
-                        let (has_incomplete, todos) = ws.has_incomplete_todos();
-                        if has_incomplete {
-                            continuation_count += 1;
-                            info!(
-                                "Todo Enforcer: {} 个未完成项，续跑 ({}/{})",
-                                todos.len(),
-                                continuation_count,
-                                self.discipline.max_continuation
-                            );
-                            messages.push(Message::User {
-                                content: build_continuation_prompt(&todos),
-                            });
-                            continue;
-                        }
+                    let (has_incomplete, todos) = ws.has_incomplete_todos();
+                    if has_incomplete {
+                        continuation_count += 1;
+                        info!(
+                            "Todo Enforcer: {} 个未完成项，续跑 ({}/{})",
+                            todos.len(),
+                            continuation_count,
+                            self.discipline.max_continuation
+                        );
+                        messages.push(Message::User {
+                            content: build_continuation_prompt(&todos),
+                        });
+                        continue;
                     }
                 }
 

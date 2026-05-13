@@ -150,10 +150,10 @@ impl AuditLogger {
             if path.extension().is_some_and(|e| e == "jsonl") {
                 let content = tokio::fs::read_to_string(&path).await?;
                 for line in content.lines() {
-                    if let Ok(audit) = serde_json::from_str::<AuditEntry>(line) {
-                        if filter.matches(&audit) {
-                            results.push(audit);
-                        }
+                    if let Ok(audit) = serde_json::from_str::<AuditEntry>(line)
+                        && filter.matches(&audit)
+                    {
+                        results.push(audit);
                     }
                 }
             }
@@ -205,25 +205,25 @@ impl AuditFilter {
                 return false;
             }
         }
-        if let Some(ref at) = self.agent_type {
-            if entry.agent_type.as_deref() != Some(at) {
-                return false;
-            }
+        if let Some(ref at) = self.agent_type
+            && entry.agent_type.as_deref() != Some(at)
+        {
+            return false;
         }
-        if let Some(since) = self.since {
-            if entry.timestamp < since {
-                return false;
-            }
+        if let Some(since) = self.since
+            && entry.timestamp < since
+        {
+            return false;
         }
-        if let Some(until) = self.until {
-            if entry.timestamp > until {
-                return false;
-            }
+        if let Some(until) = self.until
+            && entry.timestamp > until
+        {
+            return false;
         }
-        if let Some(success) = self.success_only {
-            if entry.success != success {
-                return false;
-            }
+        if let Some(success) = self.success_only
+            && entry.success != success
+        {
+            return false;
         }
         true
     }

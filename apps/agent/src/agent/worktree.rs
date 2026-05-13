@@ -99,14 +99,14 @@ impl WorktreeManager {
             } else if let Some(branch_ref) = line.strip_prefix("branch refs/heads/") {
                 current_branch = Some(branch_ref.into());
             } else if line.is_empty() {
-                if let (Some(path), Some(branch)) = (current_path.take(), current_branch.take()) {
-                    if path.to_string_lossy().contains(".agent-worktrees") {
-                        worktrees.push(WorktreeInfo {
-                            branch: branch.clone(),
-                            path,
-                            base_branch: "unknown".into(),
-                        });
-                    }
+                if let (Some(path), Some(branch)) = (current_path.take(), current_branch.take())
+                    && path.to_string_lossy().contains(".agent-worktrees")
+                {
+                    worktrees.push(WorktreeInfo {
+                        branch: branch.clone(),
+                        path,
+                        base_branch: "unknown".into(),
+                    });
                 }
                 current_path = None;
                 current_branch = None;

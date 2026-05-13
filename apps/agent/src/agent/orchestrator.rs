@@ -100,19 +100,15 @@ pub struct SubTask {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum ExecutionMode {
     /// Run in parallel with other tasks in the same wave.
+    #[default]
     Parallel,
     /// Run after all previous tasks complete.
     Sequential,
     /// Run in background, don't block the session.
     Background,
-}
-
-impl Default for ExecutionMode {
-    fn default() -> Self {
-        Self::Parallel
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -763,7 +759,7 @@ impl Orchestrator {
         }
     }
 
-    async fn broadcast_event(&self, session_id: &str, event_name: &str, data: serde_json::Value) {
+    async fn broadcast_event(&self, _session_id: &str, event_name: &str, data: serde_json::Value) {
         let event = StreamEvent::new(StreamEventType::Custom(event_name.to_string()), data);
         self.broadcaster.broadcast(event);
     }
@@ -1188,7 +1184,7 @@ mod tests {
             .build(60);
 
         let session_id = orch.submit(session).await.unwrap();
-        let wave = orch.next_wave(&session_id).await.unwrap();
+        let _wave = orch.next_wave(&session_id).await.unwrap();
 
         let agent_id = AgentId::new();
         orch.mark_started(&session_id, "a", agent_id).await.unwrap();

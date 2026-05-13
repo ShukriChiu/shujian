@@ -78,10 +78,10 @@ impl MemoryStore {
         let mut files = Vec::new();
         let mut entries = tokio::fs::read_dir(&dir).await?;
         while let Some(entry) = entries.next_entry().await? {
-            if let Some(name) = entry.file_name().to_str() {
-                if name.ends_with(".md") || name.ends_with(".txt") {
-                    files.push(name.to_string());
-                }
+            if let Some(name) = entry.file_name().to_str()
+                && (name.ends_with(".md") || name.ends_with(".txt"))
+            {
+                files.push(name.to_string());
             }
         }
         files.sort();

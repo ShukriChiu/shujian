@@ -11,14 +11,14 @@ use axum::{
 use chrono::Utc;
 use futures_util::stream::Stream;
 use serde::{Deserialize, Serialize};
-use std::{convert::Infallible, pin::Pin};
+use std::convert::Infallible;
 use tokio_stream::StreamExt;
 use tokio_stream::wrappers::BroadcastStream;
 
 use crate::types::agent::{AgentId, AgentRuntime};
-use crate::types::event::{AppEvent, NotificationLevel, TimestampedEvent};
+use crate::types::event::{AppEvent, TimestampedEvent};
 use crate::types::state::AppStateStore;
-use crate::types::task::{TaskState, TaskStatus, TokenUsage};
+use crate::types::task::TaskState;
 
 #[derive(Clone)]
 pub struct DashboardState {
@@ -229,10 +229,10 @@ async fn list_tasks(
                     return false;
                 }
             }
-            if let Some(ref at) = q.agent_type {
-                if t.agent_type.as_deref() != Some(at.as_str()) {
-                    return false;
-                }
+            if let Some(ref at) = q.agent_type
+                && t.agent_type.as_deref() != Some(at.as_str())
+            {
+                return false;
             }
             true
         })
@@ -265,11 +265,11 @@ async fn kill_task(
         .store
         .update_and_emit(
             move |s| {
-                if let Some(task) = s.tasks.get_mut(&tid) {
-                    if !task.status.is_terminal() {
-                        task.mark_killed();
-                        s.active_task_count = s.active_task_count.saturating_sub(1);
-                    }
+                if let Some(task) = s.tasks.get_mut(&tid)
+                    && !task.status.is_terminal()
+                {
+                    task.mark_killed();
+                    s.active_task_count = s.active_task_count.saturating_sub(1);
                 }
             },
             AppEvent::TaskFailed {

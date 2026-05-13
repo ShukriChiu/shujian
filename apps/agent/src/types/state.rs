@@ -28,23 +28,12 @@ pub struct PendingPermission {
     pub requested_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct MemoryState {
     pub last_dream_at: Option<DateTime<Utc>>,
     pub dream_in_progress: bool,
     pub sessions_since_dream: u32,
     pub total_entries: u64,
-}
-
-impl Default for MemoryState {
-    fn default() -> Self {
-        Self {
-            last_dream_at: None,
-            dream_in_progress: false,
-            sessions_since_dream: 0,
-            total_entries: 0,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

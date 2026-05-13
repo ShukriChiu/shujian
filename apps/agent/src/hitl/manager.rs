@@ -203,13 +203,13 @@ impl HitlManager {
         })?;
 
         // Check if expired
-        if let Some(ref i) = interaction {
-            if i.is_expired() {
-                warn!(interaction_id = %interaction_id, "Attempted to respond to expired interaction");
-                return Err(HitlError::Expired {
-                    id: interaction_id.clone(),
-                });
-            }
+        if let Some(ref i) = interaction
+            && i.is_expired()
+        {
+            warn!(interaction_id = %interaction_id, "Attempted to respond to expired interaction");
+            return Err(HitlError::Expired {
+                id: interaction_id.clone(),
+            });
         }
 
         // Send response to unblock the agent

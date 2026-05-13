@@ -50,10 +50,10 @@ impl Tool for HttpFetchTool {
             }
         }
 
-        if method == "POST" {
-            if let Some(body) = args.get("body") {
-                req = req.json(body);
-            }
+        if method == "POST"
+            && let Some(body) = args.get("body")
+        {
+            req = req.json(body);
         }
 
         let resp = req

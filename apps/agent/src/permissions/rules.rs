@@ -1,23 +1,23 @@
-/// Rule matching logic for the permission system.
-///
-/// Supports glob patterns and tool-specific specifiers following
-/// Claude Code's permission rule syntax:
-///   - `Bash` — matches all Bash commands
-///   - `Bash(npm run *)` — matches commands starting with "npm run "
-///   - `Read(./.env)` — matches reading .env in current directory
-///   - `Edit(/src/**/*.ts)` — matches TypeScript edits under /src/
-///   - `WebFetch(domain:example.com)` — matches fetch to example.com
-///   - `mcp__server__tool` — matches specific MCP tool
-///   - `Agent(Explore)` — matches agent spawning
+//! Rule matching logic for the permission system.
+//!
+//! Supports glob patterns and tool-specific specifiers following
+//! Claude Code's permission rule syntax:
+//!   - `Bash` — matches all Bash commands
+//!   - `Bash(npm run *)` — matches commands starting with "npm run "
+//!   - `Read(./.env)` — matches reading .env in current directory
+//!   - `Edit(/src/**/*.ts)` — matches TypeScript edits under /src/
+//!   - `WebFetch(domain:example.com)` — matches fetch to example.com
+//!   - `mcp__server__tool` — matches specific MCP tool
+//!   - `Agent(Explore)` — matches agent spawning
 
 /// Parse a rule specifier into (tool_name, optional_pattern).
 pub fn parse_specifier(specifier: &str) -> (&str, Option<&str>) {
-    if let Some(open) = specifier.find('(') {
-        if specifier.ends_with(')') {
-            let tool = &specifier[..open];
-            let pattern = &specifier[open + 1..specifier.len() - 1];
-            return (tool, Some(pattern));
-        }
+    if let Some(open) = specifier.find('(')
+        && specifier.ends_with(')')
+    {
+        let tool = &specifier[..open];
+        let pattern = &specifier[open + 1..specifier.len() - 1];
+        return (tool, Some(pattern));
     }
 
     if specifier.contains("__") {
@@ -108,11 +108,9 @@ fn split_compound_command(command: &str) -> Vec<&str> {
     let mut i = 0;
 
     while i < bytes.len() {
-        if bytes[i] == b'&' && i + 1 < bytes.len() && bytes[i + 1] == b'&' {
-            parts.push(&command[last..i]);
-            i += 2;
-            last = i;
-        } else if bytes[i] == b'|' && i + 1 < bytes.len() && bytes[i + 1] == b'|' {
+        let is_and = bytes[i] == b'&' && i + 1 < bytes.len() && bytes[i + 1] == b'&';
+        let is_or = bytes[i] == b'|' && i + 1 < bytes.len() && bytes[i + 1] == b'|';
+        if is_and || is_or {
             parts.push(&command[last..i]);
             i += 2;
             last = i;

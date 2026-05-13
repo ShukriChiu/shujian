@@ -26,7 +26,7 @@ pub struct AppState {
     pub start_time: std::time::Instant,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Default)]
 pub struct DaemonStatus {
     pub active_tasks: Vec<TaskInfo>,
     pub tasks_completed: u64,
@@ -39,16 +39,6 @@ pub struct TaskInfo {
     pub agent: String,
     pub message: String,
     pub started_at: String,
-}
-
-impl Default for DaemonStatus {
-    fn default() -> Self {
-        Self {
-            active_tasks: vec![],
-            tasks_completed: 0,
-            tasks_failed: 0,
-        }
-    }
 }
 
 #[derive(Deserialize)]

@@ -195,10 +195,10 @@ impl McpManager {
         let configs: HashMap<String, serde_json::Value> = serde_json::from_str(&content)?;
 
         for (name, value) in configs {
-            if let Ok(config) = parse_mcp_config(&name, &value) {
-                if let Err(e) = self.add_server(config).await {
-                    warn!("failed to add MCP server '{}': {}", name, e);
-                }
+            if let Ok(config) = parse_mcp_config(&name, &value)
+                && let Err(e) = self.add_server(config).await
+            {
+                warn!("failed to add MCP server '{}': {}", name, e);
             }
         }
 

@@ -5,7 +5,7 @@ use tokio::io::AsyncWriteExt;
 use tracing::{info, warn};
 
 use super::event::{HookEvent, HookInput, HookOutput};
-use super::registry::{HookHandler, HookHandlerType, HookRegistry, RegisteredHook};
+use super::registry::{HookHandler, HookHandlerType, HookRegistry};
 
 #[derive(Debug, Clone)]
 pub struct HookResult {
@@ -270,12 +270,12 @@ async fn execute_http(handler: &HookHandler, input_json: &str) -> Result<HookOut
 }
 
 fn should_skip_handler(handler: &HookHandler, input: &HookInput) -> bool {
-    if let Some(if_pattern) = &handler.r#if {
-        if let Some(tool_name) = input.event_data.get("tool_name") {
-            let tool_str = tool_name.as_str().unwrap_or("");
-            if !matches_if_pattern(if_pattern, tool_str, input) {
-                return true;
-            }
+    if let Some(if_pattern) = &handler.r#if
+        && let Some(tool_name) = input.event_data.get("tool_name")
+    {
+        let tool_str = tool_name.as_str().unwrap_or("");
+        if !matches_if_pattern(if_pattern, tool_str, input) {
+            return true;
         }
     }
     false

@@ -2,9 +2,8 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use anyhow::Result;
-use chrono::Utc;
 use tokio::sync::Mutex;
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
 use super::micro::MicrocompactStore;
 use super::summary;
@@ -154,6 +153,7 @@ impl CompactionEngine {
     // ──────────────────────────────────────────────────
 
     /// Perform manual compaction with an optional focus hint.
+    #[allow(clippy::too_many_arguments)]
     pub async fn manual_compact<F, Fut>(
         &self,
         messages: &[Message],
@@ -226,8 +226,7 @@ impl CompactionEngine {
         let deltas = self.delta_summaries.lock().await;
         let previous = deltas
             .iter()
-            .filter(|d| d.agent_id == agent_id)
-            .last()
+            .rfind(|d| d.agent_id == agent_id)
             .map(|d| d.delta_text.as_str());
 
         let prompt = summary::build_delta_prompt(previous);
@@ -244,8 +243,7 @@ impl CompactionEngine {
             let deltas = self.delta_summaries.lock().await;
             deltas
                 .iter()
-                .filter(|d| d.agent_id == agent_id)
-                .last()
+                .rfind(|d| d.agent_id == agent_id)
                 .map(|d| d.delta_text.clone())
         };
 
@@ -278,7 +276,7 @@ impl CompactionEngine {
         tool_schema_tokens: usize,
     ) -> ContextStats {
         let micro = self.micro.lock().await;
-        let (hot, cold) = micro.partition_results();
+        let (hot, _cold) = micro.partition_results();
 
         let total_used = system_prompt_tokens + conversation_tokens + tool_schema_tokens;
         let free = self.budget.usable_tokens().saturating_sub(total_used);
@@ -312,8 +310,7 @@ impl CompactionEngine {
             .lock()
             .await
             .iter()
-            .filter(|d| d.agent_id == agent_id)
-            .last()
+            .rfind(|d| d.agent_id == agent_id)
             .cloned()
     }
 

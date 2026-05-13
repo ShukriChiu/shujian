@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::Result;
 use std::path::{Path, PathBuf};
 use tracing::{debug, info, warn};
 
@@ -81,19 +81,19 @@ fn scan_skills_dir(dir: &Path, source: SkillSource) -> Vec<LoadedSkill> {
     for entry in entries.flatten() {
         let path = entry.path();
         if !path.is_dir() {
-            if path.file_name().map_or(false, |f| f == "SKILL.md") {
-                if let Some(skill) = load_skill_file(&path, source) {
-                    skills.push(skill);
-                }
+            if path.file_name().is_some_and(|f| f == "SKILL.md")
+                && let Some(skill) = load_skill_file(&path, source)
+            {
+                skills.push(skill);
             }
             continue;
         }
 
         let skill_md = path.join("SKILL.md");
-        if skill_md.exists() {
-            if let Some(skill) = load_skill_file(&skill_md, source) {
-                skills.push(skill);
-            }
+        if skill_md.exists()
+            && let Some(skill) = load_skill_file(&skill_md, source)
+        {
+            skills.push(skill);
         }
     }
 

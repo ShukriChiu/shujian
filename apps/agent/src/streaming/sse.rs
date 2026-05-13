@@ -5,9 +5,8 @@ use std::time::Duration;
 use axum::response::sse::{Event, KeepAlive, Sse};
 use futures_util::stream::Stream;
 use tokio::sync::broadcast;
-use tracing::{debug, info};
 
-use super::events::{StreamEvent, StreamEventType};
+use super::events::StreamEvent;
 
 /// SSE broadcast hub — manages subscribers and broadcasts stream events.
 ///

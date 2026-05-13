@@ -135,6 +135,7 @@ pub fn build_replacement_messages(
 }
 
 /// Create a CompactionResult from a model-generated summary.
+#[allow(clippy::too_many_arguments)]
 pub fn finalize_compaction(
     summary_text: String,
     trigger: CompactionTrigger,

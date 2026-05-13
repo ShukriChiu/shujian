@@ -71,7 +71,7 @@ pub struct PendingInteraction {
 }
 
 /// Additional context about why the interaction was triggered.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct InteractionContext {
     /// The tool that triggered this (if ToolApproval).
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -88,18 +88,6 @@ pub struct InteractionContext {
     /// Permission suggestions the agent recommends (allow-list updates).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub suggestions: Option<Vec<String>>,
-}
-
-impl Default for InteractionContext {
-    fn default() -> Self {
-        Self {
-            tool_name: None,
-            tool_input: None,
-            description: None,
-            plan: None,
-            suggestions: None,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

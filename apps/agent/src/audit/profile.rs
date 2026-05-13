@@ -156,6 +156,7 @@ impl ProfileStore {
         profile.last_active = Utc::now();
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn record_task_complete(
         &mut self,
         agent_type: &str,
@@ -227,10 +228,10 @@ impl ProfileStore {
         for profile in self.profiles.values() {
             let mut score = profile.stats.success_rate();
 
-            if let Some(d) = domain {
-                if let Some(&domain_score) = profile.domain_strengths.get(d) {
-                    score += domain_score;
-                }
+            if let Some(d) = domain
+                && let Some(&domain_score) = profile.domain_strengths.get(d)
+            {
+                score += domain_score;
             }
 
             if profile.stats.total_spawns < 3 {

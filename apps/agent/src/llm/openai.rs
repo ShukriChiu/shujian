@@ -25,7 +25,7 @@ impl OpenAiClient {
     }
 
     fn build_body(&self, messages: &[Message], tools: &[ToolDefinition], stream: bool) -> Value {
-        let msgs: Vec<Value> = messages.iter().map(|m| msg_to_openai(m)).collect();
+        let msgs: Vec<Value> = messages.iter().map(msg_to_openai).collect();
 
         let mut body = json!({
             "model": self.model,

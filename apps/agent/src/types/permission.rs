@@ -2,18 +2,14 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum PermissionMode {
+    #[default]
     Default,
     Plan,
     AcceptEdits,
     Auto,
     Supervised,
-}
-
-impl Default for PermissionMode {
-    fn default() -> Self {
-        Self::Default
-    }
 }
 
 impl PermissionMode {

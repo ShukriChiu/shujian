@@ -65,13 +65,12 @@ pub fn build_system_prompt(
         prompt.push_str(&format!("## 记忆\n{}\n\n", memory));
     }
 
-    if let Some(wisdom) = workspace.read_wisdom() {
-        if !wisdom
+    if let Some(wisdom) = workspace.read_wisdom()
+        && !wisdom
             .trim()
             .ends_with("(跨任务经验沉淀，由 Agent 自动维护)")
-        {
-            prompt.push_str(&format!("## 经验\n{}\n\n", wisdom));
-        }
+    {
+        prompt.push_str(&format!("## 经验\n{}\n\n", wisdom));
     }
 
     let skills = workspace.list_skills();
