@@ -1,19 +1,19 @@
 use axum::{
+    Router,
     extract::{Path, Query, State},
     http::StatusCode,
     response::{
-        sse::{Event, Sse},
         Json,
+        sse::{Event, Sse},
     },
     routing::{get, post},
-    Router,
 };
 use chrono::Utc;
 use futures_util::stream::Stream;
 use serde::{Deserialize, Serialize};
 use std::{convert::Infallible, pin::Pin};
-use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::StreamExt;
+use tokio_stream::wrappers::BroadcastStream;
 
 use crate::types::agent::{AgentId, AgentRuntime};
 use crate::types::event::{AppEvent, NotificationLevel, TimestampedEvent};
@@ -312,7 +312,9 @@ struct PendingPermissionDto {
     requested_at: String,
 }
 
-async fn pending_permissions(State(state): State<DashboardState>) -> Json<Vec<PendingPermissionDto>> {
+async fn pending_permissions(
+    State(state): State<DashboardState>,
+) -> Json<Vec<PendingPermissionDto>> {
     let s = state.store.read().await;
     let perms: Vec<PendingPermissionDto> = s
         .pending_permissions
@@ -459,15 +461,13 @@ async fn sse_events(
     let rx = state.store.subscribe();
     let store_clone = state.store.clone();
 
-    let stream = BroadcastStream::new(rx).map(move |result| {
-        match result {
-            Ok(event) => {
-                let te = TimestampedEvent::new(event);
-                let data = serde_json::to_string(&te).unwrap_or_default();
-                Ok(Event::default().data(data))
-            }
-            Err(_) => Ok(Event::default().comment("missed event")),
+    let stream = BroadcastStream::new(rx).map(move |result| match result {
+        Ok(event) => {
+            let te = TimestampedEvent::new(event);
+            let data = serde_json::to_string(&te).unwrap_or_default();
+            Ok(Event::default().data(data))
         }
+        Err(_) => Ok(Event::default().comment("missed event")),
     });
 
     let stream = stream.chain(futures_util::stream::once(async move {

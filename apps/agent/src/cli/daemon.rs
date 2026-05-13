@@ -4,6 +4,7 @@ use tokio::sync::{Mutex, Semaphore};
 use tower_http::cors::{Any, CorsLayer};
 use tracing::info;
 
+use crate::agent::orchestrator::{Orchestrator, OrchestratorConfig};
 use crate::audit::logger::AuditLogger;
 use crate::audit::profile::ProfileStore;
 use crate::compaction::engine::CompactionEngine;
@@ -12,7 +13,6 @@ use crate::config::AppConfig;
 use crate::cost::budget::BudgetEnforcer;
 use crate::cost::report::CostReporter;
 use crate::cost::types::{BudgetConfig, GlobalBudget};
-use crate::agent::orchestrator::{Orchestrator, OrchestratorConfig};
 use crate::hitl::manager::HitlManager;
 use crate::hitl::types::HitlConfig;
 use crate::hooks::registry::HookRegistry;
@@ -56,7 +56,10 @@ pub async fn run_daemon(config: &AppConfig) -> Result<()> {
     let profile_store = Arc::new(ProfileStore::new());
 
     let mcp_manager = Arc::new(McpManager::new());
-    if let Err(e) = mcp_manager.load_from_project(&config.workspace_path()).await {
+    if let Err(e) = mcp_manager
+        .load_from_project(&config.workspace_path())
+        .await
+    {
         tracing::warn!("MCP project config load failed: {}", e);
     }
 
@@ -121,7 +124,15 @@ pub async fn run_daemon(config: &AppConfig) -> Result<()> {
     info!("   HTTP: http://{}", bind);
     info!("   API v1: /api/health, /api/task, /api/task/sync");
     info!("   API v2: /api/v2/status, /api/v2/agents, /api/v2/tasks, ...");
-    info!("   Agents: {}", config.agents.iter().map(|a| a.name.as_str()).collect::<Vec<_>>().join(", "));
+    info!(
+        "   Agents: {}",
+        config
+            .agents
+            .iter()
+            .map(|a| a.name.as_str())
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
     info!("   Skills: {} loaded", skill_count);
     info!("   触发器: {} 个", config.triggers.len());
     info!("   最大并发: {}", config.server.max_concurrent_tasks);
@@ -145,11 +156,7 @@ pub async fn run_daemon(config: &AppConfig) -> Result<()> {
     Ok(())
 }
 
-async fn run_all_triggers(
-    config: &AppConfig,
-    tool_ctx: &ToolContext,
-    state: &AppState,
-) {
+async fn run_all_triggers(config: &AppConfig, tool_ctx: &ToolContext, state: &AppState) {
     use crate::llm;
     use crate::runtime::context::{build_system_prompt, build_trigger_wakeup_prompt};
     use crate::runtime::engine::AgentEngine;
@@ -168,8 +175,7 @@ async fn run_all_triggers(
         }
     }
 
-    let mut last_fired: Vec<Option<chrono::DateTime<Local>>> =
-        vec![None; config.triggers.len()];
+    let mut last_fired: Vec<Option<chrono::DateTime<Local>>> = vec![None; config.triggers.len()];
 
     info!("触发器守护进程启动，{} 个触发器", config.triggers.len());
 
@@ -225,7 +231,10 @@ async fn run_all_triggers(
                 last_fired[i] = Some(now);
 
                 let agent_name = trigger.agent.clone().unwrap_or_else(|| {
-                    config.default_agent().map(|a| a.name.clone()).unwrap_or_default()
+                    config
+                        .default_agent()
+                        .map(|a| a.name.clone())
+                        .unwrap_or_default()
                 });
 
                 let agent_config = match config.get_agent(&agent_name) {
@@ -248,19 +257,20 @@ async fn run_all_triggers(
                     let _permit = sem.acquire().await;
 
                     let resolved = cfg.resolve_llm(&agent_config);
-                    let api_key = match cfg.resolve_api_key(&resolved.api_key_env, &resolved.provider) {
-                        Ok(k) => k,
-                        Err(e) => {
-                            error!("触发器 [{}] API key 获取失败: {}", trigger_name, e);
-                            return;
-                        }
-                    };
+                    let api_key =
+                        match cfg.resolve_api_key(&resolved.api_key_env, &resolved.provider) {
+                            Ok(k) => k,
+                            Err(e) => {
+                                error!("触发器 [{}] API key 获取失败: {}", trigger_name, e);
+                                return;
+                            }
+                        };
                     let llm_config = resolved.to_llm_config();
                     let llm_client = llm::client::create_llm_client(&llm_config, &api_key);
 
-                    let ws = std::sync::Arc::new(WorkspaceManager::new(
-                        std::path::PathBuf::from(&agent_config.workspace),
-                    ));
+                    let ws = std::sync::Arc::new(WorkspaceManager::new(std::path::PathBuf::from(
+                        &agent_config.workspace,
+                    )));
                     if let Err(e) = ws.ensure_structure() {
                         error!("触发器 [{}] workspace 初始化失败: {}", trigger_name, e);
                         return;
@@ -302,7 +312,10 @@ async fn run_all_triggers(
                         .with_discipline(agent_config.discipline.clone())
                         .with_workspace(ws);
 
-                    match engine.run(llm_client.as_ref(), &mut messages, &tools, &ctx, false).await {
+                    match engine
+                        .run(llm_client.as_ref(), &mut messages, &tools, &ctx, false)
+                        .await
+                    {
                         Ok(result) => {
                             info!("触发器 [{}] 完成: {} 字节", trigger_name, result.len());
                         }

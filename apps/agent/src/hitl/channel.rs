@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use tokio::sync::oneshot;
-use tokio::time::{timeout, Duration};
+use tokio::time::{Duration, timeout};
 
 use super::types::{
     HitlConfig, InteractionResponse, InteractionResult, InteractionStatus, InteractionType,
@@ -161,11 +161,8 @@ pub fn ask_plan_approval(
     plan: &str,
     config: &HitlConfig,
 ) -> (InteractionWaiter, InteractionResponder, PendingInteraction) {
-    let interaction = PendingInteraction::plan_approval(
-        session_id,
-        plan,
-        config.default_timeout_secs,
-    );
+    let interaction =
+        PendingInteraction::plan_approval(session_id, plan, config.default_timeout_secs);
     let snapshot = interaction.clone();
     let (waiter, responder) = create_interaction(interaction, config);
     (waiter, responder, snapshot)

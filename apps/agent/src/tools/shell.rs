@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use async_trait::async_trait;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use tokio::process::Command;
 
 use super::{Tool, ToolContext};
@@ -11,7 +11,9 @@ pub struct ShellExecTool;
 
 #[async_trait]
 impl Tool for ShellExecTool {
-    fn name(&self) -> &str { "shell_exec" }
+    fn name(&self) -> &str {
+        "shell_exec"
+    }
 
     fn description(&self) -> &str {
         "在 Agent 工作空间内执行 shell 命令。返回 stdout + stderr + exit code。"

@@ -67,11 +67,7 @@ pub trait EnhancedTool: Send + Sync {
         progress: Option<Arc<dyn ProgressSink>>,
     ) -> Result<String>;
 
-    fn check_permission(
-        &self,
-        _args: &Value,
-        _ctx: &ToolContext,
-    ) -> PermissionBehavior {
+    fn check_permission(&self, _args: &Value, _ctx: &ToolContext) -> PermissionBehavior {
         if self.metadata().is_read_only {
             PermissionBehavior::Allow
         } else if self.metadata().is_destructive {
@@ -86,7 +82,11 @@ pub trait EnhancedTool: Send + Sync {
     }
 
     fn render_summary(&self, args: &Value) -> String {
-        format!("{}({})", self.name(), serde_json::to_string(args).unwrap_or_default())
+        format!(
+            "{}({})",
+            self.name(),
+            serde_json::to_string(args).unwrap_or_default()
+        )
     }
 }
 

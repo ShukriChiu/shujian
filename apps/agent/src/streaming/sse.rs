@@ -1,5 +1,5 @@
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use axum::response::sse::{Event, KeepAlive, Sse};
@@ -62,13 +62,7 @@ impl SseBroadcaster {
     }
 
     /// Emit a tool call result event.
-    pub fn emit_tool_result(
-        &self,
-        session_id: &str,
-        tool_id: &str,
-        success: bool,
-        preview: &str,
-    ) {
+    pub fn emit_tool_result(&self, session_id: &str, tool_id: &str, success: bool, preview: &str) {
         self.broadcast(StreamEvent::tool_result(
             0, session_id, tool_id, success, preview,
         ));
@@ -112,7 +106,9 @@ impl SseBroadcaster {
     }
 
     /// Create a new SSE subscriber stream for an Axum handler.
-    pub fn subscribe(&self) -> impl Stream<Item = Result<Event, std::convert::Infallible>> + 'static + use<> {
+    pub fn subscribe(
+        &self,
+    ) -> impl Stream<Item = Result<Event, std::convert::Infallible>> + 'static + use<> {
         let mut rx = self.tx.subscribe();
 
         async_stream::stream! {

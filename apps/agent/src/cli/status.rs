@@ -1,5 +1,5 @@
-use anyhow::Result;
 use crate::config::AppConfig;
+use anyhow::Result;
 
 pub async fn show_status(config: &AppConfig) -> Result<()> {
     let url = format!("http://{}/api/status", config.server.bind);
@@ -14,10 +14,22 @@ pub async fn show_status(config: &AppConfig) -> Result<()> {
                 let status: serde_json::Value = serde_json::from_str(&text)?;
 
                 println!("Daemon 状态");
-                println!("  运行时间: {}s", status["uptime_secs"].as_u64().unwrap_or(0));
-                println!("  已完成任务: {}", status["tasks_completed"].as_u64().unwrap_or(0));
-                println!("  失败任务: {}", status["tasks_failed"].as_u64().unwrap_or(0));
-                println!("  最大并发: {}", status["max_concurrent"].as_u64().unwrap_or(0));
+                println!(
+                    "  运行时间: {}s",
+                    status["uptime_secs"].as_u64().unwrap_or(0)
+                );
+                println!(
+                    "  已完成任务: {}",
+                    status["tasks_completed"].as_u64().unwrap_or(0)
+                );
+                println!(
+                    "  失败任务: {}",
+                    status["tasks_failed"].as_u64().unwrap_or(0)
+                );
+                println!(
+                    "  最大并发: {}",
+                    status["max_concurrent"].as_u64().unwrap_or(0)
+                );
 
                 if let Some(tasks) = status["active_tasks"].as_array() {
                     if tasks.is_empty() {
@@ -25,7 +37,8 @@ pub async fn show_status(config: &AppConfig) -> Result<()> {
                     } else {
                         println!("  当前任务:");
                         for t in tasks {
-                            println!("    [{}] {} — {} ({})",
+                            println!(
+                                "    [{}] {} — {} ({})",
                                 t["id"].as_str().unwrap_or("?"),
                                 t["agent"].as_str().unwrap_or("?"),
                                 t["message"].as_str().unwrap_or("?"),

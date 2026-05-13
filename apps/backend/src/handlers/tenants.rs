@@ -1,5 +1,5 @@
-use axum::extract::{Path, State};
 use axum::Json;
+use axum::extract::{Path, State};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -192,13 +192,12 @@ async fn require_tenant_admin(
     if auth.user.is_superuser {
         return Ok(());
     }
-    let role: Option<String> = sqlx::query_scalar(
-        "SELECT role FROM memberships WHERE tenant_id = $1 AND user_id = $2",
-    )
-    .bind(tenant_id)
-    .bind(auth.user.id)
-    .fetch_optional(db)
-    .await?;
+    let role: Option<String> =
+        sqlx::query_scalar("SELECT role FROM memberships WHERE tenant_id = $1 AND user_id = $2")
+            .bind(tenant_id)
+            .bind(auth.user.id)
+            .fetch_optional(db)
+            .await?;
     match role.as_deref() {
         Some("owner") | Some("admin") => Ok(()),
         _ => Err(AppError::Forbidden),

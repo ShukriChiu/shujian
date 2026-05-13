@@ -233,8 +233,7 @@ pub async fn submit(
     .execute(&mut *tx)
     .await?;
 
-    if let (Some(bytes), Some(filename), Some(mime)) =
-        (resume_bytes, resume_filename, resume_mime)
+    if let (Some(bytes), Some(filename), Some(mime)) = (resume_bytes, resume_filename, resume_mime)
     {
         sqlx::query(
             r#"
@@ -259,8 +258,8 @@ pub async fn submit(
 
 fn normalize_grade_year(raw: &str) -> String {
     match raw {
-        "freshman" | "sophomore" | "junior" | "senior" | "master_1" | "master_2"
-        | "master_3" | "phd" | "alumni" | "other" => raw.to_string(),
+        "freshman" | "sophomore" | "junior" | "senior" | "master_1" | "master_2" | "master_3"
+        | "phd" | "alumni" | "other" => raw.to_string(),
         _ => "other".to_string(),
     }
 }

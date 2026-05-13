@@ -120,10 +120,7 @@ impl CompactionEngine {
     {
         info!(tokens = current_tokens, "auto-compaction triggered");
 
-        let prompt = summary::build_compaction_prompt(
-            None,
-            self.compact_instructions.as_deref(),
-        );
+        let prompt = summary::build_compaction_prompt(None, self.compact_instructions.as_deref());
 
         let mut compact_messages = vec![Message::System {
             content: prompt.clone(),
@@ -179,10 +176,8 @@ impl CompactionEngine {
             "manual compaction triggered"
         );
 
-        let prompt = summary::build_compaction_prompt(
-            focus_hint,
-            self.compact_instructions.as_deref(),
-        );
+        let prompt =
+            summary::build_compaction_prompt(focus_hint, self.compact_instructions.as_deref());
 
         let mut compact_messages = vec![Message::System {
             content: prompt.clone(),
@@ -263,7 +258,11 @@ impl CompactionEngine {
 
         self.delta_summaries.lock().await.push(delta.clone());
 
-        debug!(agent_id, msgs = new_messages.len(), "delta summarization done");
+        debug!(
+            agent_id,
+            msgs = new_messages.len(),
+            "delta summarization done"
+        );
         Ok(delta)
     }
 

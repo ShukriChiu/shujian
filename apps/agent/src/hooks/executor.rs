@@ -71,14 +71,12 @@ impl HookExecutor {
                         }
                         if output.is_blocked() && event.can_block() {
                             blocked = true;
-                            block_reason = output
-                                .reason
-                                .clone()
-                                .or_else(|| {
-                                    output.hook_specific_output.as_ref().and_then(|h| {
-                                        h.permission_decision_reason.clone()
-                                    })
-                                });
+                            block_reason = output.reason.clone().or_else(|| {
+                                output
+                                    .hook_specific_output
+                                    .as_ref()
+                                    .and_then(|h| h.permission_decision_reason.clone())
+                            });
                         }
                         outputs.push(output);
                     }
@@ -180,9 +178,7 @@ async fn execute_handler(handler: &HookHandler, input_json: &str) -> Result<Hook
     match handler.handler_type {
         HookHandlerType::Command => execute_command(handler, input_json).await,
         HookHandlerType::Http => execute_http(handler, input_json).await,
-        HookHandlerType::Prompt | HookHandlerType::Agent => {
-            Ok(HookOutput::allow())
-        }
+        HookHandlerType::Prompt | HookHandlerType::Agent => Ok(HookOutput::allow()),
     }
 }
 
@@ -225,9 +221,7 @@ async fn execute_command(handler: &HookHandler, input_json: &str) -> Result<Hook
         }
         2 => {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            Ok(HookOutput::block(
-                stderr.trim().to_string(),
-            ))
+            Ok(HookOutput::block(stderr.trim().to_string()))
         }
         _ => {
             let stderr = String::from_utf8_lossy(&output.stderr);

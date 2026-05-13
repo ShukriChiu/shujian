@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
-use std::hash::{Hash, Hasher};
 use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 
 use serde_json::Value;
 
@@ -92,7 +92,10 @@ impl OutputTruncator {
         if output.len() > FILE_SPILL_THRESHOLD {
             let spill_dir = workspace.join("workspace/.tool_output");
             if std::fs::create_dir_all(&spill_dir).is_ok() {
-                let filename = format!("output_{}.txt", chrono::Local::now().format("%Y%m%d_%H%M%S_%3f"));
+                let filename = format!(
+                    "output_{}.txt",
+                    chrono::Local::now().format("%Y%m%d_%H%M%S_%3f")
+                );
                 let path = spill_dir.join(&filename);
                 if std::fs::write(&path, &output).is_ok() {
                     return format!(

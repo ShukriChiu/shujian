@@ -56,8 +56,14 @@ impl AgentResultMessage {
         xml.push_str(&format!("  <result>{}</result>\n", self.result));
         if let Some(usage) = &self.usage {
             xml.push_str("  <usage>\n");
-            xml.push_str(&format!("    <input_tokens>{}</input_tokens>\n", usage.input_tokens));
-            xml.push_str(&format!("    <output_tokens>{}</output_tokens>\n", usage.output_tokens));
+            xml.push_str(&format!(
+                "    <input_tokens>{}</input_tokens>\n",
+                usage.input_tokens
+            ));
+            xml.push_str(&format!(
+                "    <output_tokens>{}</output_tokens>\n",
+                usage.output_tokens
+            ));
             xml.push_str("  </usage>\n");
         }
         if let Some(cost) = self.cost_usd {

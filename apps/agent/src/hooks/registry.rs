@@ -208,7 +208,9 @@ fn parse_event_name(name: &str) -> Option<HookEvent> {
 
 fn matches_regex_simple(pattern: &str, value: &str) -> bool {
     if pattern.contains('|') {
-        return pattern.split('|').any(|p| matches_regex_simple(p.trim(), value));
+        return pattern
+            .split('|')
+            .any(|p| matches_regex_simple(p.trim(), value));
     }
     if pattern.ends_with(".*") {
         let prefix = &pattern[..pattern.len() - 2];

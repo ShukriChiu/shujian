@@ -19,9 +19,7 @@ impl SkillResolver {
     }
 
     pub fn by_name(&self, name: &str) -> Option<&LoadedSkill> {
-        self.name_index
-            .get(name)
-            .and_then(|&i| self.skills.get(i))
+        self.name_index.get(name).and_then(|&i| self.skills.get(i))
     }
 
     pub fn by_slash_command(&self, command: &str) -> Option<&LoadedSkill> {
@@ -30,11 +28,17 @@ impl SkillResolver {
     }
 
     pub fn user_invocable(&self) -> Vec<&LoadedSkill> {
-        self.skills.iter().filter(|s| s.is_user_invocable()).collect()
+        self.skills
+            .iter()
+            .filter(|s| s.is_user_invocable())
+            .collect()
     }
 
     pub fn model_invocable(&self) -> Vec<&LoadedSkill> {
-        self.skills.iter().filter(|s| s.is_model_invocable()).collect()
+        self.skills
+            .iter()
+            .filter(|s| s.is_model_invocable())
+            .collect()
     }
 
     pub fn resolve_for_context(
@@ -56,10 +60,8 @@ impl SkillResolver {
                 .map(|d| fuzzy_match(d, user_prompt))
                 .unwrap_or(false);
 
-            let path_match = active_files.is_empty()
-                || active_files
-                    .iter()
-                    .any(|f| skill.matches_path(f));
+            let path_match =
+                active_files.is_empty() || active_files.iter().any(|f| skill.matches_path(f));
 
             if desc_match && path_match {
                 matched.push(skill);
@@ -93,10 +95,7 @@ impl SkillResolver {
         }
 
         output = output.replace("${CLAUDE_SESSION_ID}", session_id);
-        output = output.replace(
-            "${CLAUDE_SKILL_DIR}",
-            &skill.directory.to_string_lossy(),
-        );
+        output = output.replace("${CLAUDE_SKILL_DIR}", &skill.directory.to_string_lossy());
 
         if !arguments.is_empty() && !skill.instructions.contains("$ARGUMENTS") {
             output.push_str(&format!("\n\nARGUMENTS: {}", arguments));

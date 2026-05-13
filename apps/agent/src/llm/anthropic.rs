@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use futures_util::StreamExt;
 use reqwest::Client;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use super::client::LlmClient;
 use super::types::*;
@@ -22,7 +22,12 @@ impl AnthropicClient {
         }
     }
 
-    fn build_body(&self, messages: &[Message], tools: &[ToolDefinition], stream: bool) -> (Option<String>, Value) {
+    fn build_body(
+        &self,
+        messages: &[Message],
+        tools: &[ToolDefinition],
+        stream: bool,
+    ) -> (Option<String>, Value) {
         let mut system_prompt = None;
         let mut api_msgs: Vec<Value> = Vec::new();
 
@@ -34,7 +39,10 @@ impl AnthropicClient {
                 Message::User { content } => {
                     api_msgs.push(json!({"role": "user", "content": content}));
                 }
-                Message::Assistant { content, tool_calls } => {
+                Message::Assistant {
+                    content,
+                    tool_calls,
+                } => {
                     let mut blocks: Vec<Value> = Vec::new();
                     if let Some(c) = content {
                         blocks.push(json!({"type": "text", "text": c}));
@@ -50,7 +58,10 @@ impl AnthropicClient {
                     }
                     api_msgs.push(json!({"role": "assistant", "content": blocks}));
                 }
-                Message::Tool { tool_call_id, content } => {
+                Message::Tool {
+                    tool_call_id,
+                    content,
+                } => {
                     api_msgs.push(json!({
                         "role": "user",
                         "content": [{
@@ -90,7 +101,9 @@ impl AnthropicClient {
 }
 
 fn parse_response(body: &Value) -> Result<LlmResponse> {
-    let content_blocks = body["content"].as_array().context("Anthropic 无 content 字段")?;
+    let content_blocks = body["content"]
+        .as_array()
+        .context("Anthropic 无 content 字段")?;
 
     let mut text_parts: Vec<String> = Vec::new();
     let mut tool_calls: Vec<ToolCall> = Vec::new();
@@ -133,11 +146,7 @@ fn parse_response(body: &Value) -> Result<LlmResponse> {
 
 #[async_trait]
 impl LlmClient for AnthropicClient {
-    async fn chat(
-        &self,
-        messages: &[Message],
-        tools: &[ToolDefinition],
-    ) -> Result<LlmResponse> {
+    async fn chat(&self, messages: &[Message], tools: &[ToolDefinition]) -> Result<LlmResponse> {
         let (system_prompt, mut body) = self.build_body(messages, tools, false);
 
         if let Some(sp) = &system_prompt {
@@ -159,7 +168,11 @@ impl LlmClient for AnthropicClient {
         let text = resp.text().await.context("读取 Anthropic 响应体失败")?;
 
         if !status.is_success() {
-            anyhow::bail!("Anthropic API 错误 ({}): {}", status, &text[..text.len().min(500)]);
+            anyhow::bail!(
+                "Anthropic API 错误 ({}): {}",
+                status,
+                &text[..text.len().min(500)]
+            );
         }
 
         let json: Value = serde_json::from_str(&text).context("解析 Anthropic JSON 失败")?;
@@ -235,7 +248,11 @@ impl LlmClient for AnthropicClient {
                                 id: id.clone(),
                                 name: name.clone(),
                             });
-                            current_tool = Some(ToolCall { id, name, arguments: String::new() });
+                            current_tool = Some(ToolCall {
+                                id,
+                                name,
+                                arguments: String::new(),
+                            });
                             current_tool_input.clear();
                         }
                     }
@@ -276,7 +293,11 @@ impl LlmClient for AnthropicClient {
         on_chunk(StreamChunk::Done);
 
         Ok(LlmResponse {
-            content: if content.is_empty() { None } else { Some(content) },
+            content: if content.is_empty() {
+                None
+            } else {
+                Some(content)
+            },
             tool_calls,
             usage: None,
         })

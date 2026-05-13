@@ -116,12 +116,7 @@ impl AuditLogger {
         .await;
     }
 
-    pub async fn log_cost_threshold(
-        &self,
-        agent_id: AgentId,
-        current_cost: f64,
-        threshold: f64,
-    ) {
+    pub async fn log_cost_threshold(&self, agent_id: AgentId, current_cost: f64, threshold: f64) {
         self.log(AuditEntry {
             timestamp: Utc::now(),
             event_type: AuditEventType::CostThresholdReached,
@@ -141,10 +136,7 @@ impl AuditLogger {
         .await;
     }
 
-    pub async fn query(
-        &self,
-        filter: AuditFilter,
-    ) -> anyhow::Result<Vec<AuditEntry>> {
+    pub async fn query(&self, filter: AuditFilter) -> anyhow::Result<Vec<AuditEntry>> {
         let mut results = Vec::new();
         let dir = &self.log_dir;
 

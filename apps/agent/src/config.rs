@@ -55,8 +55,12 @@ impl Default for DisciplineConfig {
     }
 }
 
-fn default_true() -> bool { true }
-fn default_max_continuation() -> usize { 3 }
+fn default_true() -> bool {
+    true
+}
+fn default_max_continuation() -> usize {
+    3
+}
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct ModelCategory {
@@ -110,7 +114,9 @@ fn default_bind() -> String {
     "0.0.0.0:8002".into()
 }
 
-fn default_max_concurrent() -> usize { 5 }
+fn default_max_concurrent() -> usize {
+    5
+}
 
 #[derive(Debug, Deserialize, Clone, Default)]
 pub struct SubabaseConfig {
@@ -146,10 +152,10 @@ pub struct TriggerConfig {
 
 impl AppConfig {
     pub fn load(path: &Path) -> Result<Self> {
-        let content =
-            std::fs::read_to_string(path).with_context(|| format!("读取配置文件失败: {}", path.display()))?;
-        let config: AppConfig =
-            toml::from_str(&content).with_context(|| format!("解析配置文件失败: {}", path.display()))?;
+        let content = std::fs::read_to_string(path)
+            .with_context(|| format!("读取配置文件失败: {}", path.display()))?;
+        let config: AppConfig = toml::from_str(&content)
+            .with_context(|| format!("解析配置文件失败: {}", path.display()))?;
         Ok(config)
     }
 
@@ -193,12 +199,10 @@ impl AppConfig {
     }
 
     pub fn resolve_api_key(&self, key_env: &Option<String>, provider: &str) -> Result<String> {
-        let env_name = key_env
-            .clone()
-            .unwrap_or_else(|| match provider {
-                "anthropic" => "ANTHROPIC_API_KEY".into(),
-                _ => "OPENAI_API_KEY".into(),
-            });
+        let env_name = key_env.clone().unwrap_or_else(|| match provider {
+            "anthropic" => "ANTHROPIC_API_KEY".into(),
+            _ => "OPENAI_API_KEY".into(),
+        });
         std::env::var(&env_name).with_context(|| format!("环境变量 {} 未设置", env_name))
     }
 
@@ -215,10 +219,7 @@ impl AppConfig {
     pub fn triggers_for_agent(&self, agent_name: &str) -> Vec<&TriggerConfig> {
         self.triggers
             .iter()
-            .filter(|t| {
-                t.agent.as_deref() == Some(agent_name)
-                    || t.agent.is_none()
-            })
+            .filter(|t| t.agent.as_deref() == Some(agent_name) || t.agent.is_none())
             .collect()
     }
 }

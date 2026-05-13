@@ -45,11 +45,7 @@ impl CostReporter {
     }
 
     /// Record a completed session.
-    pub async fn record_session(
-        &self,
-        summary: SessionCostSummary,
-        agent_type: Option<&str>,
-    ) {
+    pub async fn record_session(&self, summary: SessionCostSummary, agent_type: Option<&str>) {
         let mut model_breakdown = HashMap::new();
         for (model_id, usage) in &summary.model_usage {
             model_breakdown.insert(
@@ -69,8 +65,7 @@ impl CostReporter {
         let now = Utc::now();
         let record = SessionRecord {
             session_id: summary.session_id,
-            start_time: now
-                - chrono::Duration::milliseconds(summary.duration_ms as i64),
+            start_time: now - chrono::Duration::milliseconds(summary.duration_ms as i64),
             end_time: now,
             total_cost_usd: summary.total_cost_usd,
             total_usage: summary.total_usage,
@@ -93,11 +88,7 @@ impl CostReporter {
         tokio::fs::create_dir_all(&self.storage_dir).await?;
 
         let now = Utc::now();
-        let filename = format!(
-            "costs_{}-{:02}.jsonl",
-            now.year(),
-            now.month()
-        );
+        let filename = format!("costs_{}-{:02}.jsonl", now.year(), now.month());
         let path = self.storage_dir.join(filename);
 
         let line = serde_json::to_string(record)? + "\n";
@@ -165,12 +156,8 @@ impl CostReporter {
                 agg.cache_write_tokens += entry.cache_write_tokens;
             }
 
-            let agent = session
-                .agent_type
-                .as_deref()
-                .unwrap_or("unknown");
-            *by_agent.entry(agent.into()).or_insert(0.0) +=
-                session.total_cost_usd;
+            let agent = session.agent_type.as_deref().unwrap_or("unknown");
+            *by_agent.entry(agent.into()).or_insert(0.0) += session.total_cost_usd;
 
             let day_key = format!(
                 "{}-{:02}-{:02}",
@@ -178,8 +165,7 @@ impl CostReporter {
                 session.start_time.month(),
                 session.start_time.day()
             );
-            *daily_costs.entry(day_key).or_insert(0.0) +=
-                session.total_cost_usd;
+            *daily_costs.entry(day_key).or_insert(0.0) += session.total_cost_usd;
         }
 
         let avg_cost_per_session = if total_sessions > 0 {
@@ -223,9 +209,7 @@ impl CostReporter {
             if path.extension().map_or(false, |e| e == "jsonl") {
                 if let Ok(content) = tokio::fs::read_to_string(&path).await {
                     for line in content.lines() {
-                        if let Ok(record) =
-                            serde_json::from_str::<SessionRecord>(line)
-                        {
+                        if let Ok(record) = serde_json::from_str::<SessionRecord>(line) {
                             records.push(record);
                         }
                     }

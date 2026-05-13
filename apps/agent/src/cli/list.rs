@@ -8,12 +8,19 @@ pub fn list_agents(config: &AppConfig) -> Result<()> {
     }
 
     println!("\n📋 已配置的数字员工（共 {} 个）\n", config.agents.len());
-    println!("{:<20} {:<15} {:<8} {}", "名称", "模型类别", "纪律", "工作空间");
+    println!(
+        "{:<20} {:<15} {:<8} {}",
+        "名称", "模型类别", "纪律", "工作空间"
+    );
     println!("{}", "-".repeat(75));
 
     for agent in &config.agents {
         let category = agent.model_category.as_deref().unwrap_or("default");
-        let discipline = if agent.discipline.enforce_todo { "✓" } else { "✗" };
+        let discipline = if agent.discipline.enforce_todo {
+            "✓"
+        } else {
+            "✗"
+        };
         println!(
             "{:<20} {:<15} {:<8} {}",
             agent.name, category, discipline, agent.workspace
@@ -37,7 +44,10 @@ pub fn list_agents(config: &AppConfig) -> Result<()> {
         for t in &config.triggers {
             let agent = t.agent.as_deref().unwrap_or("(默认)");
             let schedule = t.expr.as_deref().unwrap_or("interval");
-            println!("  {} → {} ({}: {}) — {}", t.name, agent, t.trigger_type, schedule, t.reason);
+            println!(
+                "  {} → {} ({}: {}) — {}",
+                t.name, agent, t.trigger_type, schedule, t.reason
+            );
         }
     }
 

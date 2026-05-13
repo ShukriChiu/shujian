@@ -1,12 +1,12 @@
 use anyhow::Result;
-use tracing::{info, warn, error};
+use tracing::{error, info, warn};
 
+use super::context::{build_continuation_prompt, build_wisdom_prompt};
+use super::guard::*;
 use crate::config::DisciplineConfig;
 use crate::llm::{LlmClient, Message, StreamChunk, ToolCall};
 use crate::tools::{ToolContext, ToolRegistry};
 use crate::workspace::WorkspaceManager;
-use super::context::{build_continuation_prompt, build_wisdom_prompt};
-use super::guard::*;
 
 pub struct AgentEngine {
     max_rounds: usize,
@@ -155,7 +155,10 @@ impl AgentEngine {
 
                 let perm = self.permissions.check(&resolved_name, &args);
                 if perm == PermissionAction::Deny {
-                    let deny_msg = format!("权限拒绝：工具 `{}` 被当前 Agent 模式禁止使用。", resolved_name);
+                    let deny_msg = format!(
+                        "权限拒绝：工具 `{}` 被当前 Agent 模式禁止使用。",
+                        resolved_name
+                    );
                     warn!("{}", deny_msg);
                     messages.push(Message::Tool {
                         tool_call_id: tc.id.clone(),
@@ -238,7 +241,9 @@ impl AgentEngine {
         });
 
         let tool_defs = tools.definitions();
-        let response = self.call_with_retry(llm, messages, &tool_defs, stream, 2).await;
+        let response = self
+            .call_with_retry(llm, messages, &tool_defs, stream, 2)
+            .await;
 
         match response {
             Ok(resp) => {
@@ -250,8 +255,8 @@ impl AgentEngine {
                     });
                     for tc in &tc_clones {
                         if tools.has_tool(&tc.name) {
-                            let args: serde_json::Value =
-                                serde_json::from_str(&tc.arguments).unwrap_or(serde_json::json!({}));
+                            let args: serde_json::Value = serde_json::from_str(&tc.arguments)
+                                .unwrap_or(serde_json::json!({}));
                             let result = match tools.execute(&tc.name, args, tool_ctx).await {
                                 Ok(r) => r,
                                 Err(e) => format!("工具执行错误: {}", e),
@@ -286,7 +291,10 @@ impl AgentEngine {
         for attempt in 0..=max_retries {
             if attempt > 0 {
                 let delay = std::time::Duration::from_millis(1000 * 2u64.pow(attempt as u32 - 1));
-                warn!("LLM 调用重试 ({}/{}), 等待 {:?}", attempt, max_retries, delay);
+                warn!(
+                    "LLM 调用重试 ({}/{}), 等待 {:?}",
+                    attempt, max_retries, delay
+                );
                 tokio::time::sleep(delay).await;
             }
 
@@ -309,7 +317,10 @@ impl AgentEngine {
                 Ok(resp) => return Ok(resp),
                 Err(e) => {
                     let err_str = e.to_string();
-                    if err_str.contains("429") || err_str.contains("503") || err_str.contains("timeout") {
+                    if err_str.contains("429")
+                        || err_str.contains("503")
+                        || err_str.contains("timeout")
+                    {
                         warn!("LLM 暂时不可用: {}", &err_str[..err_str.len().min(200)]);
                         last_err = Some(e);
                         continue;
@@ -319,7 +330,8 @@ impl AgentEngine {
             }
         }
 
-        Err(last_err.unwrap_or_else(|| anyhow::anyhow!("LLM 调用失败（已重试 {} 次）", max_retries)))
+        Err(last_err
+            .unwrap_or_else(|| anyhow::anyhow!("LLM 调用失败（已重试 {} 次）", max_retries)))
     }
 
     fn should_compact(&self, messages: &[Message]) -> bool {
@@ -327,9 +339,15 @@ impl AgentEngine {
             .iter()
             .map(|m| match m {
                 Message::System { content } | Message::User { content } => content.len(),
-                Message::Assistant { content, tool_calls } => {
+                Message::Assistant {
+                    content,
+                    tool_calls,
+                } => {
                     content.as_deref().map_or(0, |c| c.len())
-                        + tool_calls.iter().map(|tc| tc.arguments.len()).sum::<usize>()
+                        + tool_calls
+                            .iter()
+                            .map(|tc| tc.arguments.len())
+                            .sum::<usize>()
                 }
                 Message::Tool { content, .. } => content.len(),
             })
@@ -355,11 +373,15 @@ impl AgentEngine {
         let summary_text: String = to_compact
             .iter()
             .filter_map(|m| match m {
-                Message::User { content } => Some(format!("User: {}", &content[..content.len().min(200)])),
-                Message::Assistant { content, .. } => {
-                    content.as_deref().map(|c| format!("Assistant: {}", &c[..c.len().min(200)]))
+                Message::User { content } => {
+                    Some(format!("User: {}", &content[..content.len().min(200)]))
                 }
-                Message::Tool { content, .. } => Some(format!("Tool: {}", &content[..content.len().min(100)])),
+                Message::Assistant { content, .. } => content
+                    .as_deref()
+                    .map(|c| format!("Assistant: {}", &c[..c.len().min(200)])),
+                Message::Tool { content, .. } => {
+                    Some(format!("Tool: {}", &content[..content.len().min(100)]))
+                }
                 _ => None,
             })
             .collect::<Vec<_>>()
@@ -388,7 +410,11 @@ impl AgentEngine {
         });
         messages.extend(recent);
 
-        info!("对话压缩完成：{} 条消息压缩为摘要 + {} 条近期消息", mid - 1, messages.len() - 2);
+        info!(
+            "对话压缩完成：{} 条消息压缩为摘要 + {} 条近期消息",
+            mid - 1,
+            messages.len() - 2
+        );
 
         Ok(())
     }

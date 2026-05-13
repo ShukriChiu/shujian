@@ -30,7 +30,10 @@ impl StdioMcpClient {
             anyhow::bail!("StdioMcpClient requires stdio transport");
         };
 
-        info!("spawning MCP server '{}': {} {:?}", config.name, command, args);
+        info!(
+            "spawning MCP server '{}': {} {:?}",
+            config.name, command, args
+        );
 
         let mut cmd = Command::new(command);
         cmd.args(args)
@@ -42,9 +45,9 @@ impl StdioMcpClient {
             cmd.env(k, v);
         }
 
-        let mut child = cmd.spawn().with_context(|| {
-            format!("failed to spawn MCP server: {} {:?}", command, args)
-        })?;
+        let mut child = cmd
+            .spawn()
+            .with_context(|| format!("failed to spawn MCP server: {} {:?}", command, args))?;
 
         let stdin = child
             .stdin
@@ -77,9 +80,7 @@ impl StdioMcpClient {
             }
         });
 
-        let resp = self
-            .send_request("initialize", Some(params))
-            .await?;
+        let resp = self.send_request("initialize", Some(params)).await?;
 
         self.send_notification("notifications/initialized", None)
             .await?;
@@ -133,10 +134,7 @@ impl StdioMcpClient {
                                 .get("description")
                                 .and_then(|d| d.as_str())
                                 .map(String::from),
-                            mime_type: r
-                                .get("mimeType")
-                                .and_then(|d| d.as_str())
-                                .map(String::from),
+                            mime_type: r.get("mimeType").and_then(|d| d.as_str()).map(String::from),
                             server_name: self.server_name.clone(),
                         })
                     })
@@ -203,9 +201,7 @@ impl StdioMcpClient {
 
     pub async fn read_resource(&self, uri: &str) -> Result<String> {
         let params = serde_json::json!({ "uri": uri });
-        let resp = self
-            .send_request("resources/read", Some(params))
-            .await?;
+        let resp = self.send_request("resources/read", Some(params)).await?;
 
         let text = resp
             .get("contents")
@@ -243,7 +239,12 @@ impl StdioMcpClient {
         let req = JsonRpcRequest::new(next_id(), method, params);
         let req_json = serde_json::to_string(&req)?;
 
-        debug!("MCP[{}] -> {}: {}", self.server_name, method, &req_json[..req_json.len().min(200)]);
+        debug!(
+            "MCP[{}] -> {}: {}",
+            self.server_name,
+            method,
+            &req_json[..req_json.len().min(200)]
+        );
 
         {
             let mut stdin_guard = self.stdin.lock().await;
@@ -273,10 +274,18 @@ impl StdioMcpClient {
                 continue;
             }
 
-            debug!("MCP[{}] <- {}", self.server_name, &line[..line.len().min(200)]);
+            debug!(
+                "MCP[{}] <- {}",
+                self.server_name,
+                &line[..line.len().min(200)]
+            );
 
-            let resp: JsonRpcResponse = serde_json::from_str(line)
-                .with_context(|| format!("invalid MCP JSON-RPC response: {}", &line[..line.len().min(100)]))?;
+            let resp: JsonRpcResponse = serde_json::from_str(line).with_context(|| {
+                format!(
+                    "invalid MCP JSON-RPC response: {}",
+                    &line[..line.len().min(100)]
+                )
+            })?;
 
             if resp.id == Some(req.id) {
                 if let Some(err) = resp.error {

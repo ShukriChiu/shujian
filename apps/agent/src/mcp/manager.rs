@@ -52,9 +52,7 @@ impl McpManager {
     pub async fn connect_server(&self, name: &str) -> Result<()> {
         let config = {
             let servers = self.servers.read().await;
-            let state = servers
-                .get(name)
-                .context("MCP server not registered")?;
+            let state = servers.get(name).context("MCP server not registered")?;
             state.config.clone()
         };
 
@@ -113,7 +111,10 @@ impl McpManager {
             }
 
             McpTransport::Sse { url } => {
-                warn!("SSE transport for '{}' is deprecated, use HTTP instead (url: {})", name, url);
+                warn!(
+                    "SSE transport for '{}' is deprecated, use HTTP instead (url: {})",
+                    name, url
+                );
                 let mut servers = self.servers.write().await;
                 if let Some(s) = servers.get_mut(name) {
                     s.status = McpServerStatus::Connected;
@@ -181,11 +182,7 @@ impl McpManager {
     }
 
     pub async fn server_status(&self, name: &str) -> Option<McpServerStatus> {
-        self.servers
-            .read()
-            .await
-            .get(name)
-            .map(|s| s.status)
+        self.servers.read().await.get(name).map(|s| s.status)
     }
 
     pub async fn load_from_project(&self, project_root: &Path) -> Result<()> {

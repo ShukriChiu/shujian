@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use async_trait::async_trait;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::path::PathBuf;
 
 use super::{Tool, ToolContext};
@@ -12,15 +12,17 @@ fn resolve_path(workspace: &std::path::Path, requested: &str) -> Result<PathBuf>
         workspace.join(requested)
     };
 
-    let canonical = path
-        .canonicalize()
-        .unwrap_or_else(|_| path.clone());
+    let canonical = path.canonicalize().unwrap_or_else(|_| path.clone());
     let ws_canonical = workspace
         .canonicalize()
         .unwrap_or_else(|_| workspace.to_path_buf());
 
     if !canonical.starts_with(&ws_canonical) && !path.starts_with(workspace) {
-        anyhow::bail!("路径越界: {} 不在工作空间 {} 内", requested, workspace.display());
+        anyhow::bail!(
+            "路径越界: {} 不在工作空间 {} 内",
+            requested,
+            workspace.display()
+        );
     }
 
     Ok(path)
@@ -30,7 +32,9 @@ pub struct ReadFileTool;
 
 #[async_trait]
 impl Tool for ReadFileTool {
-    fn name(&self) -> &str { "read_file" }
+    fn name(&self) -> &str {
+        "read_file"
+    }
 
     fn description(&self) -> &str {
         "读取工作空间中的文件内容。路径相对于 Agent 工作空间根目录。"
@@ -58,7 +62,12 @@ impl Tool for ReadFileTool {
             .with_context(|| format!("读取文件失败: {}", path.display()))?;
 
         if content.len() > max_chars {
-            Ok(format!("{}...\n[截断：文件共 {} 字符，只显示前 {}]", &content[..max_chars], content.len(), max_chars))
+            Ok(format!(
+                "{}...\n[截断：文件共 {} 字符，只显示前 {}]",
+                &content[..max_chars],
+                content.len(),
+                max_chars
+            ))
         } else {
             Ok(content)
         }
@@ -69,7 +78,9 @@ pub struct WriteFileTool;
 
 #[async_trait]
 impl Tool for WriteFileTool {
-    fn name(&self) -> &str { "write_file" }
+    fn name(&self) -> &str {
+        "write_file"
+    }
 
     fn description(&self) -> &str {
         "写入或覆盖工作空间中的文件。自动创建不存在的父目录。"
@@ -100,7 +111,11 @@ impl Tool for WriteFileTool {
             .await
             .with_context(|| format!("写入文件失败: {}", path.display()))?;
 
-        Ok(format!("已写入 {} ({} 字节)", path.display(), content.len()))
+        Ok(format!(
+            "已写入 {} ({} 字节)",
+            path.display(),
+            content.len()
+        ))
     }
 }
 
@@ -108,7 +123,9 @@ pub struct ListFilesTool;
 
 #[async_trait]
 impl Tool for ListFilesTool {
-    fn name(&self) -> &str { "list_files" }
+    fn name(&self) -> &str {
+        "list_files"
+    }
 
     fn description(&self) -> &str {
         "列出工作空间目录中的文件和子目录。"

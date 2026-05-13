@@ -33,7 +33,7 @@
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use sqlx::PgPool;
 use tokio::sync::Mutex;
 
@@ -270,11 +270,10 @@ impl KekProvider {
 
         // Re-read so we always return what's actually in the DB (covers the
         // race where another process bootstrapped first).
-        let row: (i32,) = sqlx::query_as(
-            "SELECT version FROM vault_kek_versions ORDER BY version DESC LIMIT 1",
-        )
-        .fetch_one(&self.db)
-        .await?;
+        let row: (i32,) =
+            sqlx::query_as("SELECT version FROM vault_kek_versions ORDER BY version DESC LIMIT 1")
+                .fetch_one(&self.db)
+                .await?;
 
         tracing::warn!(version = row.0, fp = %fingerprint, source = source,
             "bootstrapped vault KEK version 1");

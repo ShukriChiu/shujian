@@ -147,11 +147,10 @@ fn parse_skill_md(content: &str) -> (SkillFrontmatter, String) {
     let yaml_str = &after_first[..end_idx].trim();
     let instructions = after_first[end_idx + 3..].trim().to_string();
 
-    let frontmatter: SkillFrontmatter =
-        serde_yaml_lite_parse(yaml_str).unwrap_or_else(|e| {
-            warn!("failed to parse skill frontmatter: {}", e);
-            default_frontmatter()
-        });
+    let frontmatter: SkillFrontmatter = serde_yaml_lite_parse(yaml_str).unwrap_or_else(|e| {
+        warn!("failed to parse skill frontmatter: {}", e);
+        default_frontmatter()
+    });
 
     (frontmatter, instructions)
 }
@@ -185,16 +184,13 @@ fn serde_yaml_lite_parse(yaml: &str) -> Result<SkillFrontmatter> {
             "effort" => fm.effort = Some(value.to_string()),
             "context" => {
                 if value == "fork" {
-                    fm.context =
-                        Some(super::types::SkillContext::Fork);
+                    fm.context = Some(super::types::SkillContext::Fork);
                 }
             }
             "agent" => fm.agent = Some(value.to_string()),
             "shell" => fm.shell = Some(value.to_string()),
             "paths" => {
-                fm.paths = Some(super::types::SkillPaths::Single(
-                    value.to_string(),
-                ));
+                fm.paths = Some(super::types::SkillPaths::Single(value.to_string()));
             }
             _ => {}
         }

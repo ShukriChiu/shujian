@@ -47,11 +47,7 @@ impl MicrocompactStore {
         tokio::fs::create_dir_all(&storage_dir).await?;
 
         self.seq += 1;
-        let filename = format!(
-            "{}_{}.txt",
-            tool_name.replace('/', "_"),
-            self.seq
-        );
+        let filename = format!("{}_{}.txt", tool_name.replace('/', "_"), self.seq);
         let storage_path = storage_dir.join(&filename);
 
         tokio::fs::write(&storage_path, content).await?;
@@ -81,7 +77,11 @@ impl MicrocompactStore {
 
     /// Retrieve a previously offloaded result from disk.
     pub async fn retrieve(&self, workspace: &Path, tool_call_id: &str) -> Result<Option<String>> {
-        if let Some(record) = self.offloaded.iter().find(|r| r.tool_call_id == tool_call_id) {
+        if let Some(record) = self
+            .offloaded
+            .iter()
+            .find(|r| r.tool_call_id == tool_call_id)
+        {
             let full_path = if record.storage_path.is_absolute() {
                 record.storage_path.clone()
             } else {
@@ -146,7 +146,11 @@ impl MicrocompactStore {
 fn build_inline_stub(tool_name: &str, content: &str, storage_path: &Path) -> String {
     let preview_len = 200.min(content.len());
     let preview = &content[..preview_len];
-    let ellipsis = if content.len() > preview_len { "..." } else { "" };
+    let ellipsis = if content.len() > preview_len {
+        "..."
+    } else {
+        ""
+    };
 
     format!(
         "[{tool_name} output offloaded to disk — {chars} chars → {path}]\n\

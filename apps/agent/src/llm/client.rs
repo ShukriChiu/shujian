@@ -6,11 +6,7 @@ use crate::config::LlmConfig;
 
 #[async_trait]
 pub trait LlmClient: Send + Sync {
-    async fn chat(
-        &self,
-        messages: &[Message],
-        tools: &[ToolDefinition],
-    ) -> Result<LlmResponse>;
+    async fn chat(&self, messages: &[Message], tools: &[ToolDefinition]) -> Result<LlmResponse>;
 
     async fn chat_stream(
         &self,
@@ -20,10 +16,7 @@ pub trait LlmClient: Send + Sync {
     ) -> Result<LlmResponse>;
 }
 
-pub fn create_llm_client(
-    config: &LlmConfig,
-    api_key: &str,
-) -> Box<dyn LlmClient> {
+pub fn create_llm_client(config: &LlmConfig, api_key: &str) -> Box<dyn LlmClient> {
     match config.provider.as_str() {
         "anthropic" => Box::new(super::anthropic::AnthropicClient::new(
             api_key.to_string(),

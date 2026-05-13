@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use tokio::sync::Semaphore;
 use tracing::{info, warn};
 
@@ -28,8 +28,7 @@ impl AgentSpawner {
     }
 
     pub fn register_agent_type(&mut self, def: AgentDefinition) {
-        self.agent_registry
-            .insert(def.agent_type.clone(), def);
+        self.agent_registry.insert(def.agent_type.clone(), def);
     }
 
     pub fn register_all(&mut self, defs: Vec<AgentDefinition>) {
@@ -96,16 +95,19 @@ impl AgentSpawner {
         self.store
             .update_and_emit(
                 move |state| {
-                    state.agent_registry.insert(aid, AgentRuntime {
-                        id: aid,
-                        definition: def,
-                        status: AgentRuntimeStatus::Running,
-                        current_task_id: Some(tid.clone()),
-                        tasks_completed: 0,
-                        tasks_failed: 0,
-                        total_cost_usd: 0.0,
-                        metadata: std::collections::HashMap::new(),
-                    });
+                    state.agent_registry.insert(
+                        aid,
+                        AgentRuntime {
+                            id: aid,
+                            definition: def,
+                            status: AgentRuntimeStatus::Running,
+                            current_task_id: Some(tid.clone()),
+                            tasks_completed: 0,
+                            tasks_failed: 0,
+                            total_cost_usd: 0.0,
+                            metadata: std::collections::HashMap::new(),
+                        },
+                    );
                     let mut t = TaskState::new(TaskType::Agent, &desc);
                     t.id = tid;
                     t.agent_id = Some(aid);
@@ -169,12 +171,7 @@ impl AgentSpawner {
         info!(agent_id = %agent_id, task_id = task_id, cost = cost_usd, "agent completed");
     }
 
-    pub async fn fail_agent(
-        &self,
-        agent_id: AgentId,
-        task_id: &str,
-        error: &str,
-    ) {
+    pub async fn fail_agent(&self, agent_id: AgentId, task_id: &str, error: &str) {
         let tid = task_id.to_string();
         let err = error.to_string();
         self.store

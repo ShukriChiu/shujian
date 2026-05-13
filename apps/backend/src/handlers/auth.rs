@@ -1,6 +1,6 @@
+use axum::Json;
 use axum::extract::State;
 use axum::http::HeaderMap;
-use axum::Json;
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -45,7 +45,9 @@ pub async fn login(
 ) -> AppResult<Json<LoginResponse>> {
     let identifier = body.identifier.trim().to_lowercase();
     if identifier.is_empty() || body.password.is_empty() {
-        return Err(AppError::bad_request("identifier and password are required"));
+        return Err(AppError::bad_request(
+            "identifier and password are required",
+        ));
     }
 
     let user = sqlx::query_as::<_, User>(
@@ -121,10 +123,7 @@ pub async fn logout(
     Ok(Json(serde_json::json!({ "ok": true })))
 }
 
-pub async fn me(
-    State(state): State<AppState>,
-    auth: AuthContext,
-) -> AppResult<Json<MeResponse>> {
+pub async fn me(State(state): State<AppState>, auth: AuthContext) -> AppResult<Json<MeResponse>> {
     let memberships = load_memberships(&state.db, auth.user.id).await?;
     let current_tenant = match auth.session.tenant_id {
         Some(tid) => memberships
@@ -178,10 +177,7 @@ struct MembershipRow {
     role: String,
 }
 
-async fn load_memberships(
-    db: &sqlx::PgPool,
-    user_id: Uuid,
-) -> AppResult<Vec<TenantMembership>> {
+async fn load_memberships(db: &sqlx::PgPool, user_id: Uuid) -> AppResult<Vec<TenantMembership>> {
     let rows = sqlx::query_as::<_, MembershipRow>(
         r#"
         SELECT

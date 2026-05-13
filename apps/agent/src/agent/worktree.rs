@@ -19,10 +19,7 @@ impl WorktreeManager {
         branch_name: &str,
         base_branch: Option<&str>,
     ) -> Result<WorktreeInfo> {
-        let worktree_dir = self
-            .repo_root
-            .join(".agent-worktrees")
-            .join(branch_name);
+        let worktree_dir = self.repo_root.join(".agent-worktrees").join(branch_name);
 
         let base = base_branch.unwrap_or("HEAD");
 
@@ -54,10 +51,7 @@ impl WorktreeManager {
     }
 
     pub async fn remove(&self, branch_name: &str) -> Result<()> {
-        let worktree_dir = self
-            .repo_root
-            .join(".agent-worktrees")
-            .join(branch_name);
+        let worktree_dir = self.repo_root.join(".agent-worktrees").join(branch_name);
 
         if !worktree_dir.exists() {
             return Ok(());

@@ -11,12 +11,20 @@ use crate::workspace::WorkspaceManager;
 
 pub async fn run_interactive(config: &AppConfig, agent_name: Option<&str>) -> Result<()> {
     let agent_config = if let Some(name) = agent_name {
-        config.get_agent(name)
-            .with_context(|| format!("未找到 Agent: {}。可用: {}", name,
-                config.agents.iter().map(|a| a.name.as_str()).collect::<Vec<_>>().join(", ")))?
+        config.get_agent(name).with_context(|| {
+            format!(
+                "未找到 Agent: {}。可用: {}",
+                name,
+                config
+                    .agents
+                    .iter()
+                    .map(|a| a.name.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )
+        })?
     } else {
-        config.default_agent()
-            .context("配置中没有定义任何 Agent")?
+        config.default_agent().context("配置中没有定义任何 Agent")?
     };
 
     let resolved = config.resolve_llm(agent_config);
@@ -24,9 +32,9 @@ pub async fn run_interactive(config: &AppConfig, agent_name: Option<&str>) -> Re
     let llm_config = resolved.to_llm_config();
     let llm = llm::client::create_llm_client(&llm_config, &api_key);
 
-    let workspace = Arc::new(WorkspaceManager::new(
-        std::path::PathBuf::from(&agent_config.workspace),
-    ));
+    let workspace = Arc::new(WorkspaceManager::new(std::path::PathBuf::from(
+        &agent_config.workspace,
+    )));
     workspace.ensure_structure()?;
 
     let mut tools = ToolRegistry::new();

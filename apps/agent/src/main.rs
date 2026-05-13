@@ -1,9 +1,10 @@
 mod agent;
 mod audit;
+mod cli;
 mod compaction;
-mod cost;
 mod config;
 mod coordinator;
+mod cost;
 mod hitl;
 mod hooks;
 mod llm;
@@ -11,13 +12,12 @@ mod mcp;
 mod memory;
 mod permissions;
 mod runtime;
-mod streaming;
+mod server;
 mod skills;
+mod streaming;
 mod tools;
 mod types;
 mod workspace;
-mod server;
-mod cli;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
@@ -25,11 +25,7 @@ use std::path::PathBuf;
 use tracing_subscriber::EnvFilter;
 
 #[derive(Parser)]
-#[command(
-    name = "shujian-agent",
-    about = "友联数字员工 Rust 运行时",
-    version
-)]
+#[command(name = "shujian-agent", about = "友联数字员工 Rust 运行时", version)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,

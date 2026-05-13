@@ -152,7 +152,11 @@ impl AppState {
     }
 
     pub fn resolve_permission(&mut self, request_id: &str) -> Option<PendingPermission> {
-        if let Some(idx) = self.pending_permissions.iter().position(|p| p.request_id == request_id) {
+        if let Some(idx) = self
+            .pending_permissions
+            .iter()
+            .position(|p| p.request_id == request_id)
+        {
             Some(self.pending_permissions.remove(idx))
         } else {
             None
@@ -160,7 +164,10 @@ impl AppState {
     }
 
     pub fn active_tasks(&self) -> Vec<&TaskState> {
-        self.tasks.values().filter(|t| !t.status.is_terminal()).collect()
+        self.tasks
+            .values()
+            .filter(|t| !t.status.is_terminal())
+            .collect()
     }
 
     pub fn tasks_for_agent(&self, agent_id: AgentId) -> Vec<&TaskState> {
@@ -179,7 +186,7 @@ impl AppState {
 }
 
 use std::sync::Arc;
-use tokio::sync::{broadcast, RwLock};
+use tokio::sync::{RwLock, broadcast};
 
 pub struct AppStateStore {
     state: Arc<RwLock<AppState>>,

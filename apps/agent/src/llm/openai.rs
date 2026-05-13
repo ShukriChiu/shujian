@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use futures_util::StreamExt;
 use reqwest::Client;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use super::client::LlmClient;
 use super::types::*;
@@ -58,24 +58,35 @@ fn msg_to_openai(msg: &Message) -> Value {
     match msg {
         Message::System { content } => json!({"role": "system", "content": content}),
         Message::User { content } => json!({"role": "user", "content": content}),
-        Message::Assistant { content, tool_calls } => {
+        Message::Assistant {
+            content,
+            tool_calls,
+        } => {
             let mut m = json!({"role": "assistant"});
             if let Some(c) = content {
                 m["content"] = json!(c);
             }
             if !tool_calls.is_empty() {
-                m["tool_calls"] = json!(tool_calls.iter().map(|tc| json!({
-                    "id": tc.id,
-                    "type": "function",
-                    "function": {
-                        "name": tc.name,
-                        "arguments": tc.arguments,
-                    }
-                })).collect::<Vec<_>>());
+                m["tool_calls"] = json!(
+                    tool_calls
+                        .iter()
+                        .map(|tc| json!({
+                            "id": tc.id,
+                            "type": "function",
+                            "function": {
+                                "name": tc.name,
+                                "arguments": tc.arguments,
+                            }
+                        }))
+                        .collect::<Vec<_>>()
+                );
             }
             m
         }
-        Message::Tool { tool_call_id, content } => {
+        Message::Tool {
+            tool_call_id,
+            content,
+        } => {
             json!({"role": "tool", "tool_call_id": tool_call_id, "content": content})
         }
     }
@@ -119,11 +130,7 @@ fn parse_response(body: &Value) -> Result<LlmResponse> {
 
 #[async_trait]
 impl LlmClient for OpenAiClient {
-    async fn chat(
-        &self,
-        messages: &[Message],
-        tools: &[ToolDefinition],
-    ) -> Result<LlmResponse> {
+    async fn chat(&self, messages: &[Message], tools: &[ToolDefinition]) -> Result<LlmResponse> {
         let body = self.build_body(messages, tools, false);
 
         let resp = self
@@ -139,7 +146,11 @@ impl LlmClient for OpenAiClient {
         let text = resp.text().await.context("读取 OpenAI 响应体失败")?;
 
         if !status.is_success() {
-            anyhow::bail!("OpenAI API 错误 ({}): {}", status, &text[..text.len().min(500)]);
+            anyhow::bail!(
+                "OpenAI API 错误 ({}): {}",
+                status,
+                &text[..text.len().min(500)]
+            );
         }
 
         let json: Value = serde_json::from_str(&text).context("解析 OpenAI JSON 失败")?;
@@ -211,10 +222,8 @@ impl LlmClient for OpenAiClient {
                                 let idx = tc["index"].as_u64().unwrap_or(0) as usize;
 
                                 if let Some(id) = tc["id"].as_str() {
-                                    let name = tc["function"]["name"]
-                                        .as_str()
-                                        .unwrap_or("")
-                                        .to_string();
+                                    let name =
+                                        tc["function"]["name"].as_str().unwrap_or("").to_string();
                                     while tool_calls.len() <= idx {
                                         tool_calls.push(ToolCall {
                                             id: String::new(),
@@ -250,7 +259,11 @@ impl LlmClient for OpenAiClient {
         on_chunk(StreamChunk::Done);
 
         Ok(LlmResponse {
-            content: if content.is_empty() { None } else { Some(content) },
+            content: if content.is_empty() {
+                None
+            } else {
+                Some(content)
+            },
             tool_calls,
             usage: None,
         })

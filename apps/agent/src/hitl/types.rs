@@ -139,23 +139,17 @@ pub struct InteractionResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum InteractionResult {
     /// User answered clarifying questions.
-    Answered {
-        answers: HashMap<String, String>,
-    },
+    Answered { answers: HashMap<String, String> },
     /// User approved a tool execution.
     Approved {
         updated_input: Option<serde_json::Value>,
     },
     /// User denied a tool execution.
-    Denied {
-        message: String,
-    },
+    Denied { message: String },
     /// User approved a plan.
     PlanApproved,
     /// User rejected a plan (with optional feedback).
-    PlanRejected {
-        feedback: Option<String>,
-    },
+    PlanRejected { feedback: Option<String> },
     /// Interaction timed out.
     TimedOut,
     /// Interaction was cancelled.
@@ -243,11 +237,7 @@ impl PendingInteraction {
     }
 
     /// Create a plan approval interaction.
-    pub fn plan_approval(
-        session_id: &str,
-        plan: &str,
-        timeout_secs: u64,
-    ) -> Self {
+    pub fn plan_approval(session_id: &str, plan: &str, timeout_secs: u64) -> Self {
         let now = Utc::now();
         Self {
             id: Uuid::new_v4().to_string(),

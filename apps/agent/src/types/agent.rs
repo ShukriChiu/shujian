@@ -140,10 +140,23 @@ impl AgentColor {
 
     pub fn all() -> &'static [AgentColor] {
         &[
-            Self::Blue, Self::Green, Self::Purple, Self::Orange, Self::Teal,
-            Self::Pink, Self::Indigo, Self::Emerald, Self::Amber, Self::Cyan,
-            Self::Red, Self::Violet, Self::Lime, Self::Rose, Self::Fuchsia,
-            Self::Sky, Self::Yellow,
+            Self::Blue,
+            Self::Green,
+            Self::Purple,
+            Self::Orange,
+            Self::Teal,
+            Self::Pink,
+            Self::Indigo,
+            Self::Emerald,
+            Self::Amber,
+            Self::Cyan,
+            Self::Red,
+            Self::Violet,
+            Self::Lime,
+            Self::Rose,
+            Self::Fuchsia,
+            Self::Sky,
+            Self::Yellow,
         ]
     }
 }

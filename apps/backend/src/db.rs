@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use sqlx::postgres::{PgPoolOptions, PgConnectOptions};
+use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
 use sqlx::{ConnectOptions, PgPool};
 use std::str::FromStr;
 use std::time::Duration;

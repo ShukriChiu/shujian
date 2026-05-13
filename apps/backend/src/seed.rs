@@ -16,11 +16,10 @@ use crate::handlers::auth::create_user;
 /// password. Use `/v1/auth/...` endpoints (or a future password-reset
 /// flow) to change credentials in place.
 pub async fn ensure_seed(db: &PgPool, cfg: &Config) -> Result<()> {
-    let existing: Option<Uuid> =
-        sqlx::query_scalar("SELECT id FROM tenants WHERE slug = $1")
-            .bind(&cfg.seed_tenant_slug)
-            .fetch_optional(db)
-            .await?;
+    let existing: Option<Uuid> = sqlx::query_scalar("SELECT id FROM tenants WHERE slug = $1")
+        .bind(&cfg.seed_tenant_slug)
+        .fetch_optional(db)
+        .await?;
 
     if existing.is_some() {
         tracing::info!(

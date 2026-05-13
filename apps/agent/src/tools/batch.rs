@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use async_trait::async_trait;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use super::{Tool, ToolContext};
 
@@ -10,7 +10,9 @@ pub struct BatchTool;
 
 #[async_trait]
 impl Tool for BatchTool {
-    fn name(&self) -> &str { "batch" }
+    fn name(&self) -> &str {
+        "batch"
+    }
 
     fn description(&self) -> &str {
         "并行执行多个工具调用。当你需要同时执行多个独立操作时使用（如同时读取多个文件、同时查询多个数据源）。最多 25 个并行调用。不支持嵌套 batch。"
@@ -38,9 +40,7 @@ impl Tool for BatchTool {
     }
 
     async fn execute(&self, args: Value, ctx: &ToolContext) -> Result<String> {
-        let calls = args["calls"]
-            .as_array()
-            .context("缺少 calls 数组")?;
+        let calls = args["calls"].as_array().context("缺少 calls 数组")?;
 
         if calls.len() > MAX_BATCH_SIZE {
             anyhow::bail!("batch 最多 {} 个调用，收到 {}", MAX_BATCH_SIZE, calls.len());
@@ -49,10 +49,7 @@ impl Tool for BatchTool {
         let mut handles = Vec::new();
 
         for (i, call) in calls.iter().enumerate() {
-            let tool_name = call["tool"]
-                .as_str()
-                .unwrap_or("unknown")
-                .to_string();
+            let tool_name = call["tool"].as_str().unwrap_or("unknown").to_string();
             let tool_args = call["args"].clone();
 
             if tool_name == "batch" {
@@ -97,24 +94,22 @@ impl Tool for BatchTool {
                 Err(e) => {
                     results.push(format!("[{}] {} → 错误: {}", i, name, e));
                 }
-                Ok(handle) => {
-                    match handle.await {
-                        Ok(Ok(output)) => {
-                            let truncated = if output.len() > 2000 {
-                                format!("{}...[截断]", &output[..2000])
-                            } else {
-                                output
-                            };
-                            results.push(format!("[{}] {} → {}", i, name, truncated));
-                        }
-                        Ok(Err(e)) => {
-                            results.push(format!("[{}] {} → 错误: {}", i, name, e));
-                        }
-                        Err(e) => {
-                            results.push(format!("[{}] {} → 任务失败: {}", i, name, e));
-                        }
+                Ok(handle) => match handle.await {
+                    Ok(Ok(output)) => {
+                        let truncated = if output.len() > 2000 {
+                            format!("{}...[截断]", &output[..2000])
+                        } else {
+                            output
+                        };
+                        results.push(format!("[{}] {} → {}", i, name, truncated));
                     }
-                }
+                    Ok(Err(e)) => {
+                        results.push(format!("[{}] {} → 错误: {}", i, name, e));
+                    }
+                    Err(e) => {
+                        results.push(format!("[{}] {} → 任务失败: {}", i, name, e));
+                    }
+                },
             }
         }
 

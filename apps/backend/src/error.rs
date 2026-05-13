@@ -1,6 +1,6 @@
+use axum::Json;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use axum::Json;
 use serde_json::json;
 
 #[derive(Debug, thiserror::Error)]
@@ -52,20 +52,32 @@ impl IntoResponse for AppError {
         let (status, code, message): (StatusCode, &'static str, String) = match &self {
             AppError::BadRequest(m) => (StatusCode::BAD_REQUEST, "bad_request", m.clone()),
             AppError::Unauthorized => (StatusCode::UNAUTHORIZED, "unauthorized", self.to_string()),
-            AppError::Forbidden    => (StatusCode::FORBIDDEN,    "forbidden",    self.to_string()),
-            AppError::NotFound     => (StatusCode::NOT_FOUND,    "not_found",    self.to_string()),
-            AppError::Conflict(m)  => (StatusCode::CONFLICT,     "conflict",     m.clone()),
-            AppError::Internal(e)  => {
+            AppError::Forbidden => (StatusCode::FORBIDDEN, "forbidden", self.to_string()),
+            AppError::NotFound => (StatusCode::NOT_FOUND, "not_found", self.to_string()),
+            AppError::Conflict(m) => (StatusCode::CONFLICT, "conflict", m.clone()),
+            AppError::Internal(e) => {
                 tracing::error!(error = ?e, "internal error");
-                (StatusCode::INTERNAL_SERVER_ERROR, "internal", "internal error".into())
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "internal",
+                    "internal error".into(),
+                )
             }
             AppError::Db(e) => {
                 tracing::error!(error = ?e, "db error");
-                (StatusCode::INTERNAL_SERVER_ERROR, "db_error", "database error".into())
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "db_error",
+                    "database error".into(),
+                )
             }
             AppError::Hash(m) => {
                 tracing::error!(error = %m, "hash error");
-                (StatusCode::INTERNAL_SERVER_ERROR, "hash_error", "internal error".into())
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "hash_error",
+                    "internal error".into(),
+                )
             }
         };
         let body = Json(json!({

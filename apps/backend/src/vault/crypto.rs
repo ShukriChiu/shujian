@@ -15,7 +15,7 @@
 
 use aes_gcm::aead::{Aead, AeadCore, KeyInit, OsRng};
 use aes_gcm::{Aes256Gcm, Key, Nonce};
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use base64::Engine as _;
 use rand::RngCore;
 
@@ -171,10 +171,7 @@ pub fn decode_kek_b64(s: &str) -> Result<[u8; 32]> {
         .or_else(|_| STANDARD_NO_PAD.decode(trimmed))
         .context("KEK must be base64")?;
     if bytes.len() != 32 {
-        return Err(anyhow!(
-            "KEK must decode to 32 bytes (got {})",
-            bytes.len()
-        ));
+        return Err(anyhow!("KEK must decode to 32 bytes (got {})", bytes.len()));
     }
     let mut key = [0u8; 32];
     key.copy_from_slice(&bytes);
@@ -212,12 +209,10 @@ mod tests {
         let env = encrypt_with_fresh_dek(b"postgres://...").unwrap();
         let wrapped = wrap_dek(&kek, &env.dek, &tenant, name).unwrap();
 
-        let unwrapped =
-            unwrap_dek(&kek, &wrapped.wrapped, &wrapped.nonce, &tenant, name).unwrap();
+        let unwrapped = unwrap_dek(&kek, &wrapped.wrapped, &wrapped.nonce, &tenant, name).unwrap();
         assert_eq!(unwrapped, env.dek);
 
-        let pt =
-            decrypt_with_dek(&unwrapped, &env.nonce, &env.auth_tag, &env.ciphertext).unwrap();
+        let pt = decrypt_with_dek(&unwrapped, &env.nonce, &env.auth_tag, &env.ciphertext).unwrap();
         assert_eq!(pt, b"postgres://...");
     }
 

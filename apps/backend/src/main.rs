@@ -1,16 +1,16 @@
 use std::time::Duration;
 
 use anyhow::Result;
+use axum::Router;
 use axum::extract::DefaultBodyLimit;
 use axum::http::header::{AUTHORIZATION, CONTENT_TYPE};
 use axum::http::{HeaderName, HeaderValue, Method};
 use axum::routing::{delete, get, patch, post};
-use axum::Router;
+use tower_http::LatencyUnit;
 use tower_http::cors::{AllowOrigin, CorsLayer};
 use tower_http::request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer};
 use tower_http::trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer};
-use tower_http::LatencyUnit;
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
 
 mod auth;
 mod config;
@@ -85,7 +85,10 @@ fn auth_routes() -> Router<AppState> {
 
 fn tenant_routes() -> Router<AppState> {
     Router::new()
-        .route("/", get(handlers::tenants::list_tenants).post(handlers::tenants::create_tenant))
+        .route(
+            "/",
+            get(handlers::tenants::list_tenants).post(handlers::tenants::create_tenant),
+        )
         .route(
             "/{tenant_id}/members",
             get(handlers::tenants::list_members).post(handlers::tenants::add_member),
@@ -144,10 +147,7 @@ fn persona_routes() -> Router<AppState> {
         // After the dashboard launches a Cursor agent with the env we
         // issued, it comes back here to record the agent_id/run_id so
         // the audit log links audit ↔ run.
-        .route(
-            "/issuances/{id}/record-launch",
-            post(v::record_launch),
-        )
+        .route("/issuances/{id}/record-launch", post(v::record_launch))
         // Per-persona endpoints. Note the order: /:slug must come AFTER
         // the literal "issuances" routes above — axum matches in order
         // and "issuances" would otherwise be interpreted as a slug.
@@ -178,7 +178,10 @@ fn future_routes() -> Router<AppState> {
     use handlers::future::{apply, assignments, notes, projects, share_link, students};
 
     let public = Router::new()
-        .route("/apply/{token}", get(apply::get_tenant_info).post(apply::submit))
+        .route(
+            "/apply/{token}",
+            get(apply::get_tenant_info).post(apply::submit),
+        )
         // 8 MB ≈ 5 MB resume cap + JSON overhead. Tighter than Axum's
         // 2 MB default, looser than the per-file CHECK in
         // future_resumes (5 MB).
@@ -188,13 +191,12 @@ fn future_routes() -> Router<AppState> {
         .route("/students", get(students::list))
         .route(
             "/students/{id}",
-            get(students::get).patch(students::update).delete(students::delete),
+            get(students::get)
+                .patch(students::update)
+                .delete(students::delete),
         )
         .route("/students/{id}/resume", get(students::download_resume))
-        .route(
-            "/students/{id}/notes",
-            get(notes::list).post(notes::create),
-        )
+        .route("/students/{id}/notes", get(notes::list).post(notes::create))
         .route(
             "/students/{student_id}/notes/{note_id}",
             delete(notes::delete),
@@ -210,7 +212,9 @@ fn future_routes() -> Router<AppState> {
         .route("/projects", get(projects::list).post(projects::create))
         .route(
             "/projects/{id}",
-            get(projects::get).patch(projects::update).delete(projects::delete),
+            get(projects::get)
+                .patch(projects::update)
+                .delete(projects::delete),
         )
         .route(
             "/projects/{id}/assignments",
@@ -245,11 +249,7 @@ fn build_cors(cfg: &Config) -> CorsLayer {
         ])
         .max_age(Duration::from_secs(60 * 30));
 
-    if cfg
-        .cors_allow_origins
-        .iter()
-        .any(|o| o == "*")
-    {
+    if cfg.cors_allow_origins.iter().any(|o| o == "*") {
         layer.allow_origin(AllowOrigin::any())
     } else {
         let origins: Vec<HeaderValue> = cfg

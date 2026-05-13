@@ -18,27 +18,19 @@ pub struct ModelPricing {
 
 impl ModelPricing {
     pub fn cost_for(&self, usage: &TokenUsage) -> f64 {
-        let input_cost =
-            (usage.input_tokens as f64 / 1_000_000.0) * self.input_per_mtok;
-        let output_cost =
-            (usage.output_tokens as f64 / 1_000_000.0) * self.output_per_mtok;
+        let input_cost = (usage.input_tokens as f64 / 1_000_000.0) * self.input_per_mtok;
+        let output_cost = (usage.output_tokens as f64 / 1_000_000.0) * self.output_per_mtok;
         let cache_read_cost = (usage.cache_read_tokens as f64 / 1_000_000.0)
             * self.input_per_mtok
             * self.cache_read_multiplier;
-        let cache_write_5m_cost =
-            (usage.cache_creation_5m_tokens as f64 / 1_000_000.0)
-                * self.input_per_mtok
-                * self.cache_write_5m_multiplier;
-        let cache_write_1h_cost =
-            (usage.cache_creation_1h_tokens as f64 / 1_000_000.0)
-                * self.input_per_mtok
-                * self.cache_write_1h_multiplier;
+        let cache_write_5m_cost = (usage.cache_creation_5m_tokens as f64 / 1_000_000.0)
+            * self.input_per_mtok
+            * self.cache_write_5m_multiplier;
+        let cache_write_1h_cost = (usage.cache_creation_1h_tokens as f64 / 1_000_000.0)
+            * self.input_per_mtok
+            * self.cache_write_1h_multiplier;
 
-        input_cost
-            + output_cost
-            + cache_read_cost
-            + cache_write_5m_cost
-            + cache_write_1h_cost
+        input_cost + output_cost + cache_read_cost + cache_write_5m_cost + cache_write_1h_cost
     }
 }
 
@@ -291,7 +283,8 @@ mod tests {
         let expected_output = 2_000.0 / 1e6 * 15.0;
         let expected_cache_read = 50_000.0 / 1e6 * 3.0 * 0.1;
         let expected_cache_write = 5_000.0 / 1e6 * 3.0 * 2.0;
-        let expected = expected_input + expected_output + expected_cache_read + expected_cache_write;
+        let expected =
+            expected_input + expected_output + expected_cache_read + expected_cache_write;
 
         assert!((cost - expected).abs() < 1e-10);
     }

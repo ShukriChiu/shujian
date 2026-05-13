@@ -116,9 +116,7 @@ impl LoadedSkill {
         if patterns.is_empty() {
             return true;
         }
-        patterns
-            .iter()
-            .any(|pat| glob_match_simple(pat, file_path))
+        patterns.iter().any(|pat| glob_match_simple(pat, file_path))
     }
 }
 

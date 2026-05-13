@@ -61,7 +61,14 @@ impl LlmResponse {
 #[derive(Debug, Clone)]
 pub enum StreamChunk {
     Text(String),
-    ToolCallStart { index: usize, id: String, name: String },
-    ToolCallDelta { index: usize, arguments: String },
+    ToolCallStart {
+        index: usize,
+        id: String,
+        name: String,
+    },
+    ToolCallDelta {
+        index: usize,
+        arguments: String,
+    },
     Done,
 }

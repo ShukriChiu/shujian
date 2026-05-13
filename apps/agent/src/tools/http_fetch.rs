@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use reqwest::Client;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use super::{Tool, ToolContext};
 
@@ -11,7 +11,9 @@ pub struct HttpFetchTool;
 
 #[async_trait]
 impl Tool for HttpFetchTool {
-    fn name(&self) -> &str { "http_fetch" }
+    fn name(&self) -> &str {
+        "http_fetch"
+    }
 
     fn description(&self) -> &str {
         "发起 HTTP 请求。支持 GET 和 POST，可发送 JSON body。用于调用外部 API（如 union-agent OCR 服务）。"
@@ -54,7 +56,10 @@ impl Tool for HttpFetchTool {
             }
         }
 
-        let resp = req.send().await.with_context(|| format!("HTTP 请求失败: {}", url))?;
+        let resp = req
+            .send()
+            .await
+            .with_context(|| format!("HTTP 请求失败: {}", url))?;
         let status = resp.status().as_u16();
         let text = resp
             .text()

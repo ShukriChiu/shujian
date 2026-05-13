@@ -45,8 +45,8 @@ async fn load_agent_file(path: &Path) -> Result<AgentDefinition> {
         .await
         .with_context(|| format!("reading {}", path.display()))?;
 
-    let parsed: AgentToml = toml::from_str(&content)
-        .with_context(|| format!("parsing {}", path.display()))?;
+    let parsed: AgentToml =
+        toml::from_str(&content).with_context(|| format!("parsing {}", path.display()))?;
 
     Ok(parsed.agent)
 }

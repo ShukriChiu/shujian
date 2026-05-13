@@ -79,11 +79,10 @@ pub async fn list(
         .as_deref()
         .map(|s| s.split(',').map(|x| x.trim().to_string()).collect());
 
-    let needle = q
-        .q
-        .as_deref()
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty());
+    let needle =
+        q.q.as_deref()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty());
 
     let rows = sqlx::query_as::<_, StudentSummary>(
         r#"
@@ -298,18 +297,13 @@ pub async fn download_resume(
     let mut resp = Response::new(Body::from(data));
     resp.headers_mut().insert(
         header::CONTENT_TYPE,
-        HeaderValue::from_str(&mime).unwrap_or_else(|_| {
-            HeaderValue::from_static("application/octet-stream")
-        }),
+        HeaderValue::from_str(&mime)
+            .unwrap_or_else(|_| HeaderValue::from_static("application/octet-stream")),
     );
-    let disp = format!(
-        "attachment; filename*=UTF-8''{}",
-        urlencode_path(&filename)
-    );
+    let disp = format!("attachment; filename*=UTF-8''{}", urlencode_path(&filename));
     resp.headers_mut().insert(
         header::CONTENT_DISPOSITION,
-        HeaderValue::from_str(&disp)
-            .unwrap_or_else(|_| HeaderValue::from_static("attachment")),
+        HeaderValue::from_str(&disp).unwrap_or_else(|_| HeaderValue::from_static("attachment")),
     );
 
     Ok(resp.into_response())
@@ -321,8 +315,7 @@ pub async fn download_resume(
 fn urlencode_path(s: &str) -> String {
     let mut out = String::with_capacity(s.len() * 2);
     for b in s.bytes() {
-        let safe = b.is_ascii_alphanumeric()
-            || matches!(b, b'-' | b'.' | b'_' | b'~');
+        let safe = b.is_ascii_alphanumeric() || matches!(b, b'-' | b'.' | b'_' | b'~');
         if safe {
             out.push(b as char);
         } else {

@@ -213,9 +213,7 @@ fn glob_match_double_star(pattern: &str, input: &str) -> bool {
 }
 
 fn wildcard_match(pattern: &str, input: &str) -> bool {
-    let regex_str = pattern
-        .replace('.', "\\.")
-        .replace('*', ".*");
+    let regex_str = pattern.replace('.', "\\.").replace('*', ".*");
 
     let full_pattern = format!("^{regex_str}$");
 
@@ -231,7 +229,10 @@ mod tests {
     #[test]
     fn test_parse_specifier() {
         assert_eq!(parse_specifier("Bash"), ("Bash", None));
-        assert_eq!(parse_specifier("Bash(npm run *)"), ("Bash", Some("npm run *")));
+        assert_eq!(
+            parse_specifier("Bash(npm run *)"),
+            ("Bash", Some("npm run *"))
+        );
         assert_eq!(parse_specifier("Read(./.env)"), ("Read", Some("./.env")));
         assert_eq!(parse_specifier("mcp__puppeteer"), ("mcp__puppeteer", None));
     }
@@ -241,7 +242,11 @@ mod tests {
         assert!(matches_rule("Bash", "Bash", "anything"));
         assert!(matches_rule("Bash(*)", "Bash", "anything"));
         assert!(matches_rule("Bash(npm run *)", "Bash", "npm run build"));
-        assert!(matches_rule("Bash(npm run *)", "Bash", "npm run test --coverage"));
+        assert!(matches_rule(
+            "Bash(npm run *)",
+            "Bash",
+            "npm run test --coverage"
+        ));
         assert!(!matches_rule("Bash(npm run *)", "Bash", "npm install"));
     }
 
@@ -252,18 +257,22 @@ mod tests {
             "Bash",
             "safe-cmd arg && rm -rf /"
         ));
-        assert!(matches_rule(
-            "Bash(safe-cmd *)",
-            "Bash",
-            "safe-cmd --help"
-        ));
+        assert!(matches_rule("Bash(safe-cmd *)", "Bash", "safe-cmd --help"));
     }
 
     #[test]
     fn test_path_matching() {
         assert!(matches_rule("Read(./.env)", "Read", "./.env"));
-        assert!(matches_rule("Edit(/src/**/*.ts)", "Edit", "/src/components/App.ts"));
-        assert!(!matches_rule("Edit(/src/**/*.ts)", "Edit", "/docs/readme.md"));
+        assert!(matches_rule(
+            "Edit(/src/**/*.ts)",
+            "Edit",
+            "/src/components/App.ts"
+        ));
+        assert!(!matches_rule(
+            "Edit(/src/**/*.ts)",
+            "Edit",
+            "/docs/readme.md"
+        ));
     }
 
     #[test]
@@ -287,7 +296,11 @@ mod tests {
 
     #[test]
     fn test_mcp_matching() {
-        assert!(matches_rule("mcp__puppeteer", "mcp__puppeteer__navigate", ""));
+        assert!(matches_rule(
+            "mcp__puppeteer",
+            "mcp__puppeteer__navigate",
+            ""
+        ));
         assert!(matches_rule(
             "mcp__puppeteer__puppeteer_navigate",
             "mcp__puppeteer__puppeteer_navigate",

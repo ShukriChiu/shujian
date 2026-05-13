@@ -191,10 +191,7 @@ impl HitlManager {
     /// Submit a user response to a pending interaction.
     ///
     /// Called by the REST API when the user answers.
-    pub async fn respond(
-        &self,
-        response: InteractionResponse,
-    ) -> Result<(), HitlError> {
+    pub async fn respond(&self, response: InteractionResponse) -> Result<(), HitlError> {
         let interaction_id = response.interaction_id.clone();
 
         // Remove from pending and responders
@@ -547,10 +544,7 @@ mod tests {
     async fn test_cancel() {
         let mgr = Arc::new(HitlManager::new(HitlConfig::default(), test_broadcaster()));
 
-        let waiter = mgr
-            .ask_clarification("s1", None, vec![])
-            .await
-            .unwrap();
+        let waiter = mgr.ask_clarification("s1", None, vec![]).await.unwrap();
 
         let pending = mgr.list_pending().await;
         let id = pending[0].id.clone();

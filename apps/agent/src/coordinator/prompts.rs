@@ -5,10 +5,7 @@ pub fn coordinator_system_prompt(available_agents: &[AgentDefinition]) -> String
 
     prompt.push_str("\n## 可调度的 Worker 类型\n\n");
     for agent in available_agents {
-        let color = agent
-            .color
-            .map(|c| c.hex().to_string())
-            .unwrap_or_default();
+        let color = agent.color.map(|c| c.hex().to_string()).unwrap_or_default();
         let domain = agent.domain.as_deref().unwrap_or("通用");
         prompt.push_str(&format!(
             "- **{}** (`{}`): {} [领域: {}, 颜色: {}]\n",

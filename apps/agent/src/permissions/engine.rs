@@ -84,10 +84,7 @@ impl PermissionEngine {
         if self.check_ask_rules(&config, request) {
             self.total_asked.fetch_add(1, Ordering::Relaxed);
             return PermissionVerdict::Ask {
-                reason: format!(
-                    "Tool '{}' matches an ask rule",
-                    request.tool_name
-                ),
+                reason: format!("Tool '{}' matches an ask rule", request.tool_name),
             };
         }
 
@@ -149,10 +146,7 @@ impl PermissionEngine {
                 }
                 if self.is_protected_path(config, &request.tool_input) {
                     return Some(PermissionVerdict::Ask {
-                        reason: format!(
-                            "Protected directory: {}",
-                            request.tool_input
-                        ),
+                        reason: format!("Protected directory: {}", request.tool_input),
                     });
                 }
                 return Some(PermissionVerdict::Allow);
@@ -164,10 +158,7 @@ impl PermissionEngine {
             }
             PermissionMode::DontAsk => {
                 return Some(PermissionVerdict::Deny {
-                    reason: format!(
-                        "DontAsk mode: '{}' not pre-approved",
-                        request.tool_name
-                    ),
+                    reason: format!("DontAsk mode: '{}' not pre-approved", request.tool_name),
                 });
             }
             PermissionMode::Default | PermissionMode::Auto => {}
@@ -191,24 +182,18 @@ impl PermissionEngine {
         false
     }
 
-    fn check_ask_rules(
-        &self,
-        config: &PermissionConfig,
-        request: &PermissionRequest,
-    ) -> bool {
-        config.ask.iter().any(|rule| {
-            matches_rule(&rule.specifier, &request.tool_name, &request.tool_input)
-        })
+    fn check_ask_rules(&self, config: &PermissionConfig, request: &PermissionRequest) -> bool {
+        config
+            .ask
+            .iter()
+            .any(|rule| matches_rule(&rule.specifier, &request.tool_name, &request.tool_input))
     }
 
-    fn check_allow_rules(
-        &self,
-        config: &PermissionConfig,
-        request: &PermissionRequest,
-    ) -> bool {
-        config.allow.iter().any(|rule| {
-            matches_rule(&rule.specifier, &request.tool_name, &request.tool_input)
-        })
+    fn check_allow_rules(&self, config: &PermissionConfig, request: &PermissionRequest) -> bool {
+        config
+            .allow
+            .iter()
+            .any(|rule| matches_rule(&rule.specifier, &request.tool_name, &request.tool_input))
     }
 
     fn default_verdict(
@@ -234,10 +219,7 @@ impl PermissionEngine {
                 reason: "Agent spawning requires approval".into(),
             },
             ToolCategory::Other => PermissionVerdict::Ask {
-                reason: format!(
-                    "Tool '{}' requires approval",
-                    request.tool_name
-                ),
+                reason: format!("Tool '{}' requires approval", request.tool_name),
             },
         }
     }
@@ -318,11 +300,7 @@ impl PermissionEngine {
 }
 
 fn truncate(s: &str, max_len: usize) -> &str {
-    if s.len() <= max_len {
-        s
-    } else {
-        &s[..max_len]
-    }
+    if s.len() <= max_len { s } else { &s[..max_len] }
 }
 
 #[cfg(test)]

@@ -9,7 +9,10 @@ use super::types::{
 ///
 /// This is the "compaction contract" — a structured checklist that ensures
 /// the summary preserves everything needed for continuation.
-pub fn build_compaction_prompt(focus_hint: Option<&str>, custom_instructions: Option<&str>) -> String {
+pub fn build_compaction_prompt(
+    focus_hint: Option<&str>,
+    custom_instructions: Option<&str>,
+) -> String {
     let mut prompt = String::from(
         "You are performing a conversation compaction. Your task is to produce a structured \
          working state summary that allows the conversation to continue seamlessly.\n\n\
@@ -80,12 +83,10 @@ pub fn build_delta_prompt(previous_summary: Option<&str>) -> String {
                 the most important details.";
 
     match previous_summary {
-        Some(prev) => format!(
-            "{base}\n\nPrevious summary:\n{prev}\n\nNow summarize the new messages:"
-        ),
-        None => format!(
-            "{base}\n\nThis is the first batch of messages. Summarize them concisely:"
-        ),
+        Some(prev) => {
+            format!("{base}\n\nPrevious summary:\n{prev}\n\nNow summarize the new messages:")
+        }
+        None => format!("{base}\n\nThis is the first batch of messages. Summarize them concisely:"),
     }
 }
 

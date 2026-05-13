@@ -1,8 +1,8 @@
-pub mod file;
-pub mod shell;
-pub mod http_fetch;
-pub mod supabase;
 pub mod batch;
+pub mod file;
+pub mod http_fetch;
+pub mod shell;
+pub mod supabase;
 pub mod traits;
 
 use anyhow::Result;

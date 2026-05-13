@@ -1,20 +1,20 @@
 use axum::{
+    Router,
     extract::{Path, Query, State},
     http::StatusCode,
     response::Json,
     routing::{delete, get, post},
-    Router,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing::info;
 
+use crate::agent::orchestrator::{Orchestrator, SubTaskResult};
 use crate::audit::logger::AuditLogger;
 use crate::audit::profile::ProfileStore;
 use crate::compaction::engine::CompactionEngine;
 use crate::cost::budget::BudgetEnforcer;
 use crate::cost::report::CostReporter;
-use crate::agent::orchestrator::{Orchestrator, SubTaskResult};
 use crate::hitl::manager::HitlManager;
 use crate::hitl::types::InteractionResponse;
 use crate::hooks::registry::HookRegistry;
@@ -26,7 +26,7 @@ use crate::skills::types::LoadedSkill;
 use crate::streaming::sse::SseBroadcaster;
 use crate::types::state::AppStateStore;
 
-use super::dashboard::{dashboard_router, DashboardState};
+use super::dashboard::{DashboardState, dashboard_router};
 
 #[derive(Clone)]
 pub struct UnifiedState {
@@ -74,10 +74,7 @@ pub fn unified_router(state: UnifiedState) -> Router {
         .route("/api/v2/audit/query", get(query_audit))
         .route("/api/v2/profiles", get(list_profiles))
         .route("/api/v2/profiles/{agent_type}", get(get_profile))
-        .route(
-            "/api/v2/profiles/recommend",
-            post(recommend_agent),
-        )
+        .route("/api/v2/profiles/recommend", post(recommend_agent))
         .route("/api/v2/context/stats", get(context_stats))
         .route("/api/v2/context/history", get(compaction_history))
         .route("/api/v2/permissions/stats", get(permission_stats))
@@ -95,9 +92,18 @@ pub fn unified_router(state: UnifiedState) -> Router {
         // Orchestrator: multi-agent coordination
         .route("/api/v2/orchestrator/sessions", get(orch_list_sessions))
         .route("/api/v2/orchestrator/sessions/{id}", get(orch_get_session))
-        .route("/api/v2/orchestrator/sessions/{id}/results", get(orch_results))
-        .route("/api/v2/orchestrator/sessions/{id}/cancel", post(orch_cancel))
-        .route("/api/v2/orchestrator/sessions/{id}/record", post(orch_record_result))
+        .route(
+            "/api/v2/orchestrator/sessions/{id}/results",
+            get(orch_results),
+        )
+        .route(
+            "/api/v2/orchestrator/sessions/{id}/cancel",
+            post(orch_cancel),
+        )
+        .route(
+            "/api/v2/orchestrator/sessions/{id}/record",
+            post(orch_record_result),
+        )
         .route("/api/v2/orchestrator/stats", get(orch_stats))
         .with_state(state);
 
@@ -113,9 +119,7 @@ struct McpServerDto {
     error: Option<String>,
 }
 
-async fn list_mcp_servers(
-    State(state): State<UnifiedState>,
-) -> Json<Vec<McpServerDto>> {
+async fn list_mcp_servers(State(state): State<UnifiedState>) -> Json<Vec<McpServerDto>> {
     let servers = state.mcp.server_states().await;
     let dtos: Vec<McpServerDto> = servers
         .iter()
@@ -186,9 +190,7 @@ struct McpToolDto {
     input_schema: serde_json::Value,
 }
 
-async fn list_mcp_tools(
-    State(state): State<UnifiedState>,
-) -> Json<Vec<McpToolDto>> {
+async fn list_mcp_tools(State(state): State<UnifiedState>) -> Json<Vec<McpToolDto>> {
     let tools = state.mcp.all_tools().await;
     let dtos: Vec<McpToolDto> = tools
         .iter()
@@ -223,9 +225,7 @@ struct McpResourceDto {
     server_name: String,
 }
 
-async fn list_mcp_resources(
-    State(state): State<UnifiedState>,
-) -> Json<Vec<McpResourceDto>> {
+async fn list_mcp_resources(State(state): State<UnifiedState>) -> Json<Vec<McpResourceDto>> {
     let resources = state.mcp.all_resources().await;
     let dtos: Vec<McpResourceDto> = resources
         .iter()
@@ -269,9 +269,7 @@ fn skill_to_dto(s: &LoadedSkill) -> SkillDto {
     }
 }
 
-async fn list_skills(
-    State(state): State<UnifiedState>,
-) -> Json<Vec<SkillDto>> {
+async fn list_skills(State(state): State<UnifiedState>) -> Json<Vec<SkillDto>> {
     let dtos: Vec<SkillDto> = state
         .skills
         .all_skills()
@@ -317,7 +315,9 @@ async fn invoke_skill(
         .ok_or((StatusCode::NOT_FOUND, format!("skill not found: {}", name)))?;
 
     let args = req.arguments.unwrap_or_default();
-    let session = req.session_id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+    let session = req
+        .session_id
+        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
 
     let rendered = state.skills.render_instructions(skill, &args, &session);
 
@@ -334,9 +334,7 @@ struct HooksStatusDto {
     disabled: bool,
 }
 
-async fn hooks_status(
-    State(state): State<UnifiedState>,
-) -> Json<HooksStatusDto> {
+async fn hooks_status(State(state): State<UnifiedState>) -> Json<HooksStatusDto> {
     Json(HooksStatusDto {
         total_hooks: state.hooks.count(),
         disabled: state.hooks.is_disabled(),
@@ -372,9 +370,7 @@ async fn query_audit(
     Json(values)
 }
 
-async fn list_profiles(
-    State(state): State<UnifiedState>,
-) -> Json<Vec<serde_json::Value>> {
+async fn list_profiles(State(state): State<UnifiedState>) -> Json<Vec<serde_json::Value>> {
     let profiles = state.profiles.all_profiles();
     let values: Vec<serde_json::Value> = profiles
         .iter()
@@ -387,13 +383,10 @@ async fn get_profile(
     State(state): State<UnifiedState>,
     Path(agent_type): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    let profile = state
-        .profiles
-        .get_profile(&agent_type)
-        .ok_or((
-            StatusCode::NOT_FOUND,
-            format!("no profile for agent type: {}", agent_type),
-        ))?;
+    let profile = state.profiles.get_profile(&agent_type).ok_or((
+        StatusCode::NOT_FOUND,
+        format!("no profile for agent type: {}", agent_type),
+    ))?;
     let value = serde_json::to_value(profile)
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(Json(value))
@@ -410,18 +403,14 @@ async fn recommend_agent(
     State(state): State<UnifiedState>,
     Json(req): Json<RecommendRequest>,
 ) -> Json<serde_json::Value> {
-    let recommended = state
-        .profiles
-        .recommend_agent(req.domain.as_deref());
+    let recommended = state.profiles.recommend_agent(req.domain.as_deref());
     Json(serde_json::json!({
         "recommended_agent_type": recommended,
         "task_description": req.task_description,
     }))
 }
 
-async fn context_stats(
-    State(state): State<UnifiedState>,
-) -> Json<serde_json::Value> {
+async fn context_stats(State(state): State<UnifiedState>) -> Json<serde_json::Value> {
     let stats = state.compaction.stats(0, 0, 0).await;
     let budget = state.compaction.budget();
     Json(serde_json::json!({
@@ -440,9 +429,7 @@ async fn context_stats(
     }))
 }
 
-async fn compaction_history(
-    State(state): State<UnifiedState>,
-) -> Json<Vec<serde_json::Value>> {
+async fn compaction_history(State(state): State<UnifiedState>) -> Json<Vec<serde_json::Value>> {
     let history = state.compaction.compaction_history().await;
     let values: Vec<serde_json::Value> = history
         .iter()
@@ -451,9 +438,7 @@ async fn compaction_history(
     Json(values)
 }
 
-async fn permission_stats(
-    State(state): State<UnifiedState>,
-) -> Json<serde_json::Value> {
+async fn permission_stats(State(state): State<UnifiedState>) -> Json<serde_json::Value> {
     let stats = state.permissions.stats().await;
     serde_json::to_value(stats)
         .map(Json)
@@ -477,14 +462,15 @@ async fn set_permission_mode(
 
 async fn sse_stream(
     State(state): State<UnifiedState>,
-) -> axum::response::sse::Sse<impl futures_util::stream::Stream<Item = Result<axum::response::sse::Event, std::convert::Infallible>> + 'static>
-{
+) -> axum::response::sse::Sse<
+    impl futures_util::stream::Stream<
+        Item = Result<axum::response::sse::Event, std::convert::Infallible>,
+    > + 'static,
+> {
     crate::streaming::sse::sse_response(state.broadcaster)
 }
 
-async fn budget_stats(
-    State(state): State<UnifiedState>,
-) -> Json<serde_json::Value> {
+async fn budget_stats(State(state): State<UnifiedState>) -> Json<serde_json::Value> {
     let stats = state.budget.global_stats().await;
     serde_json::to_value(stats)
         .map(Json)
@@ -500,9 +486,9 @@ async fn cost_report(
     State(state): State<UnifiedState>,
     Query(params): Query<CostReportParams>,
 ) -> Json<serde_json::Value> {
-    let since = params.days.map(|d| {
-        Utc::now() - chrono::Duration::days(d as i64)
-    });
+    let since = params
+        .days
+        .map(|d| Utc::now() - chrono::Duration::days(d as i64));
     let report = state.cost_reporter.generate_report(since, None).await;
     serde_json::to_value(report)
         .map(Json)
@@ -513,9 +499,7 @@ use chrono::Utc;
 
 // ── HITL Handlers ──────────────────────────────────────────────
 
-async fn hitl_list_pending(
-    State(state): State<UnifiedState>,
-) -> Json<Vec<serde_json::Value>> {
+async fn hitl_list_pending(State(state): State<UnifiedState>) -> Json<Vec<serde_json::Value>> {
     let pending = state.hitl.list_pending().await;
     let values: Vec<serde_json::Value> = pending
         .iter()
@@ -528,11 +512,10 @@ async fn hitl_get_pending(
     State(state): State<UnifiedState>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    let interaction = state
-        .hitl
-        .get_pending(&id)
-        .await
-        .ok_or((StatusCode::NOT_FOUND, format!("interaction not found: {}", id)))?;
+    let interaction = state.hitl.get_pending(&id).await.ok_or((
+        StatusCode::NOT_FOUND,
+        format!("interaction not found: {}", id),
+    ))?;
     let value = serde_json::to_value(interaction)
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(Json(value))
@@ -542,11 +525,12 @@ async fn hitl_respond(
     State(state): State<UnifiedState>,
     Json(response): Json<InteractionResponse>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    state
-        .hitl
-        .respond(response)
-        .await
-        .map_err(|e| (StatusCode::from_u16(e.status_code()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR), e.to_string()))?;
+    state.hitl.respond(response).await.map_err(|e| {
+        (
+            StatusCode::from_u16(e.status_code()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),
+            e.to_string(),
+        )
+    })?;
     Ok(Json(serde_json::json!({"status": "answered"})))
 }
 
@@ -554,17 +538,16 @@ async fn hitl_cancel(
     State(state): State<UnifiedState>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    state
-        .hitl
-        .cancel(&id)
-        .await
-        .map_err(|e| (StatusCode::from_u16(e.status_code()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR), e.to_string()))?;
+    state.hitl.cancel(&id).await.map_err(|e| {
+        (
+            StatusCode::from_u16(e.status_code()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),
+            e.to_string(),
+        )
+    })?;
     Ok(Json(serde_json::json!({"status": "cancelled"})))
 }
 
-async fn hitl_stats(
-    State(state): State<UnifiedState>,
-) -> Json<serde_json::Value> {
+async fn hitl_stats(State(state): State<UnifiedState>) -> Json<serde_json::Value> {
     let stats = state.hitl.stats().await;
     serde_json::to_value(stats)
         .map(Json)
@@ -591,9 +574,7 @@ async fn hitl_history(
 
 // ── Orchestrator Handlers ──────────────────────────────────────
 
-async fn orch_list_sessions(
-    State(state): State<UnifiedState>,
-) -> Json<Vec<serde_json::Value>> {
+async fn orch_list_sessions(State(state): State<UnifiedState>) -> Json<Vec<serde_json::Value>> {
     let sessions = state.orchestrator.list_sessions().await;
     let values: Vec<serde_json::Value> = sessions
         .iter()
@@ -624,7 +605,12 @@ async fn orch_results(
         .orchestrator
         .aggregate_results(&id)
         .await
-        .map_err(|e| (StatusCode::from_u16(e.status_code()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR), e.to_string()))?;
+        .map_err(|e| {
+            (
+                StatusCode::from_u16(e.status_code()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),
+                e.to_string(),
+            )
+        })?;
     let value = serde_json::to_value(results)
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(Json(value))
@@ -634,11 +620,12 @@ async fn orch_cancel(
     State(state): State<UnifiedState>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    state
-        .orchestrator
-        .cancel_session(&id)
-        .await
-        .map_err(|e| (StatusCode::from_u16(e.status_code()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR), e.to_string()))?;
+    state.orchestrator.cancel_session(&id).await.map_err(|e| {
+        (
+            StatusCode::from_u16(e.status_code()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),
+            e.to_string(),
+        )
+    })?;
     Ok(Json(serde_json::json!({"status": "cancelled"})))
 }
 
@@ -651,13 +638,16 @@ async fn orch_record_result(
         .orchestrator
         .record_result(&id, result)
         .await
-        .map_err(|e| (StatusCode::from_u16(e.status_code()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR), e.to_string()))?;
+        .map_err(|e| {
+            (
+                StatusCode::from_u16(e.status_code()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),
+                e.to_string(),
+            )
+        })?;
     Ok(Json(serde_json::json!({"session_status": status})))
 }
 
-async fn orch_stats(
-    State(state): State<UnifiedState>,
-) -> Json<serde_json::Value> {
+async fn orch_stats(State(state): State<UnifiedState>) -> Json<serde_json::Value> {
     let stats = state.orchestrator.stats().await;
     serde_json::to_value(stats)
         .map(Json)

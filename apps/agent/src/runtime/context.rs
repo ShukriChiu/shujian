@@ -39,7 +39,9 @@ pub fn build_system_prompt(
     mode: Option<&AgentMode>,
     discipline: &DisciplineConfig,
 ) -> String {
-    let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S %Z").to_string();
+    let now = chrono::Local::now()
+        .format("%Y-%m-%d %H:%M:%S %Z")
+        .to_string();
     let os = std::env::consts::OS;
     let arch = std::env::consts::ARCH;
 
@@ -64,7 +66,10 @@ pub fn build_system_prompt(
     }
 
     if let Some(wisdom) = workspace.read_wisdom() {
-        if !wisdom.trim().ends_with("(跨任务经验沉淀，由 Agent 自动维护)") {
+        if !wisdom
+            .trim()
+            .ends_with("(跨任务经验沉淀，由 Agent 自动维护)")
+        {
             prompt.push_str(&format!("## 经验\n{}\n\n", wisdom));
         }
     }
@@ -127,15 +132,13 @@ pub fn build_trigger_wakeup_prompt(trigger_name: &str, reason: &str) -> String {
 }
 
 pub fn build_continuation_prompt(incomplete_todos: &[String]) -> String {
-    let mut prompt = String::from(
-        "⚠️ **任务未完成**。focus.md 中仍有未完成的待办事项：\n\n"
-    );
+    let mut prompt = String::from("⚠️ **任务未完成**。focus.md 中仍有未完成的待办事项：\n\n");
     for todo in incomplete_todos {
         prompt.push_str(&format!("{}\n", todo));
     }
     prompt.push_str(
         "\n请继续执行这些待办事项。完成一项就立即用 write_file 更新 focus.md 标记为 [x]。\
-         所有待办完成后再给出最终回复。"
+         所有待办完成后再给出最终回复。",
     );
     prompt
 }

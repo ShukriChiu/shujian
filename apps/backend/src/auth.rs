@@ -1,8 +1,8 @@
-use argon2::password_hash::rand_core::OsRng as ArgonOsRng;
 use argon2::password_hash::SaltString;
+use argon2::password_hash::rand_core::OsRng as ArgonOsRng;
 use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
-use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use rand::RngCore;
 use sha2::{Digest, Sha256};
 

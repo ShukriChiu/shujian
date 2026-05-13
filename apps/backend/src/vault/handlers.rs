@@ -10,9 +10,9 @@
 //! `X-Tenant-Id` to operate on any tenant (used by the dashboard's
 //! tenant-switcher).
 
+use axum::Json;
 use axum::extract::{Path, Query, State};
 use axum::http::HeaderMap;
-use axum::Json;
 use serde::Deserialize;
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -61,13 +61,12 @@ async fn require_tenant_admin(
     if auth.user.is_superuser {
         return Ok(tenant_id);
     }
-    let role: Option<String> = sqlx::query_scalar(
-        "SELECT role FROM memberships WHERE tenant_id = $1 AND user_id = $2",
-    )
-    .bind(tenant_id)
-    .bind(auth.user.id)
-    .fetch_optional(db)
-    .await?;
+    let role: Option<String> =
+        sqlx::query_scalar("SELECT role FROM memberships WHERE tenant_id = $1 AND user_id = $2")
+            .bind(tenant_id)
+            .bind(auth.user.id)
+            .fetch_optional(db)
+            .await?;
     match role.as_deref() {
         Some("owner") | Some("admin") => Ok(tenant_id),
         _ => Err(AppError::Forbidden),
@@ -106,7 +105,14 @@ fn map_kek_err(e: anyhow::Error) -> AppError {
 // Secrets
 // ─────────────────────────────────────────────────────────────────────────────
 
-const ALLOWED_KINDS: &[&str] = &["env", "jwt_signing", "webhook", "oauth", "r2_secret", "misc"];
+const ALLOWED_KINDS: &[&str] = &[
+    "env",
+    "jwt_signing",
+    "webhook",
+    "oauth",
+    "r2_secret",
+    "misc",
+];
 
 pub async fn upsert_secret(
     State(state): State<AppState>,
@@ -131,8 +137,8 @@ pub async fn upsert_secret(
     let active = kek.active().await.map_err(map_kek_err)?;
 
     // Encrypt + wrap.
-    let env = crypto::encrypt_with_fresh_dek(body.value.as_bytes())
-        .map_err(|e| AppError::Internal(e))?;
+    let env =
+        crypto::encrypt_with_fresh_dek(body.value.as_bytes()).map_err(|e| AppError::Internal(e))?;
     let wrapped = crypto::wrap_dek(&active.material, &env.dek, &tenant_id, &name)
         .map_err(|e| AppError::Internal(e))?;
     let metadata = body.metadata.unwrap_or(serde_json::json!({}));
@@ -213,8 +219,9 @@ pub async fn list_secrets(
     // because sqlx doesn't have a clean optional-where helper and we want
     // statement caching.
     let rows: Vec<SecretMetadataRow> = match q.kind.as_deref() {
-        Some(kind) => sqlx::query_as(
-            r#"
+        Some(kind) => {
+            sqlx::query_as(
+                r#"
             SELECT id, tenant_id, name, kind, description,
                    kek_version, metadata, created_at, rotated_at,
                    last_used_at, created_by
@@ -222,13 +229,15 @@ pub async fn list_secrets(
             WHERE tenant_id = $1 AND kind = $2
             ORDER BY name
             "#,
-        )
-        .bind(tenant_id)
-        .bind(kind)
-        .fetch_all(&state.db)
-        .await?,
-        None => sqlx::query_as(
-            r#"
+            )
+            .bind(tenant_id)
+            .bind(kind)
+            .fetch_all(&state.db)
+            .await?
+        }
+        None => {
+            sqlx::query_as(
+                r#"
             SELECT id, tenant_id, name, kind, description,
                    kek_version, metadata, created_at, rotated_at,
                    last_used_at, created_by
@@ -236,10 +245,11 @@ pub async fn list_secrets(
             WHERE tenant_id = $1
             ORDER BY name
             "#,
-        )
-        .bind(tenant_id)
-        .fetch_all(&state.db)
-        .await?,
+            )
+            .bind(tenant_id)
+            .fetch_all(&state.db)
+            .await?
+        }
     };
     Ok(Json(rows.into_iter().map(SecretMetadata::from).collect()))
 }
@@ -564,7 +574,10 @@ fn validate_spec_version(s: &str) -> AppResult<()> {
     // Accept "1", "1.0", "1.5", "1.10". Reject "2.x" / non-numeric / blank.
     let mut parts = s.split('.');
     let major = parts.next().and_then(|p| p.parse::<u32>().ok());
-    let minor_ok = parts.next().map(|p| p.parse::<u32>().is_ok()).unwrap_or(true);
+    let minor_ok = parts
+        .next()
+        .map(|p| p.parse::<u32>().is_ok())
+        .unwrap_or(true);
     let extra = parts.next().is_some();
     if major != Some(1) || !minor_ok || extra {
         return Err(AppError::bad_request(format!(
@@ -808,23 +821,19 @@ async fn resolve_scopes(
     let mut seen_envs: std::collections::HashSet<String> = std::collections::HashSet::new();
 
     for scope in &scopes {
-        let arr = scope
-            .bindings
-            .as_array()
-            .cloned()
-            .unwrap_or_default();
+        let arr = scope.bindings.as_array().cloned().unwrap_or_default();
         for (i, binding) in arr.iter().enumerate() {
-            let kind = binding
-                .get("kind")
-                .and_then(|v| v.as_str())
-                .unwrap_or("");
+            let kind = binding.get("kind").and_then(|v| v.as_str()).unwrap_or("");
             let env_name = binding
                 .get("env")
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string();
             if env_name.is_empty() {
-                errors.push(format!("scope '{}' bindings[{}].env missing", scope.name, i));
+                errors.push(format!(
+                    "scope '{}' bindings[{}].env missing",
+                    scope.name, i
+                ));
                 continue;
             }
             if !seen_envs.insert(env_name.clone()) {
@@ -901,13 +910,9 @@ async fn resolve_scopes(
                             &row.name,
                         )
                         .map_err(AppError::Internal)?;
-                        let plaintext = crypto::decrypt_with_dek(
-                            &dek,
-                            &nonce,
-                            &tag,
-                            &row.ciphertext,
-                        )
-                        .map_err(AppError::Internal)?;
+                        let plaintext =
+                            crypto::decrypt_with_dek(&dek, &nonce, &tag, &row.ciphertext)
+                                .map_err(AppError::Internal)?;
                         let value_str = String::from_utf8(plaintext).map_err(|e| {
                             AppError::Internal(anyhow::anyhow!(
                                 "secret '{}' is not valid UTF-8: {e}",
@@ -1165,13 +1170,7 @@ pub async fn preview_persona_env(
     let cursor_settings = persona.cursor_settings.clone();
 
     let result = resolve_scopes(
-        &state,
-        &kek,
-        tenant_id,
-        persona_id,
-        &scope_ids,
-        q.reveal,
-        q.reveal,
+        &state, &kek, tenant_id, persona_id, &scope_ids, q.reveal, q.reveal,
     )
     .await;
 
@@ -1344,7 +1343,9 @@ pub async fn revoke_issuance(
         return Err(AppError::NotFound);
     };
     if revoked_at.is_some() {
-        return Ok(Json(serde_json::json!({ "ok": true, "already_revoked": true })));
+        return Ok(Json(
+            serde_json::json!({ "ok": true, "already_revoked": true }),
+        ));
     }
 
     let mut revoked: Vec<String> = Vec::new();
@@ -1400,8 +1401,9 @@ pub async fn list_issuances(
     let limit = q.limit.unwrap_or(100).clamp(1, 500);
 
     let rows: Vec<IssuanceLogRow> = match q.persona_slug.as_deref() {
-        Some(slug) => sqlx::query_as(
-            r#"
+        Some(slug) => {
+            sqlx::query_as(
+                r#"
             SELECT l.id, l.tenant_id, l.persona_id, l.issued_to_user,
                    l.bridge_name, l.cursor_agent_id, l.cursor_run_id,
                    l.scope_ids, l.env_keys, l.onion_jti, l.onion_jtis,
@@ -1412,14 +1414,16 @@ pub async fn list_issuances(
             ORDER BY l.created_at DESC
             LIMIT $3
             "#,
-        )
-        .bind(tenant_id)
-        .bind(slug.to_lowercase())
-        .bind(limit)
-        .fetch_all(&state.db)
-        .await?,
-        None => sqlx::query_as(
-            r#"
+            )
+            .bind(tenant_id)
+            .bind(slug.to_lowercase())
+            .bind(limit)
+            .fetch_all(&state.db)
+            .await?
+        }
+        None => {
+            sqlx::query_as(
+                r#"
             SELECT id, tenant_id, persona_id, issued_to_user,
                    bridge_name, cursor_agent_id, cursor_run_id,
                    scope_ids, env_keys, onion_jti, onion_jtis,
@@ -1429,11 +1433,12 @@ pub async fn list_issuances(
             ORDER BY created_at DESC
             LIMIT $2
             "#,
-        )
-        .bind(tenant_id)
-        .bind(limit)
-        .fetch_all(&state.db)
-        .await?,
+            )
+            .bind(tenant_id)
+            .bind(limit)
+            .fetch_all(&state.db)
+            .await?
+        }
     };
     Ok(Json(rows))
 }
@@ -1461,12 +1466,11 @@ pub async fn kek_status(
         }));
     }
     let active = kek.active().await.map_err(map_kek_err)?;
-    let row: Option<(String, String)> = sqlx::query_as(
-        "SELECT fingerprint, source FROM vault_kek_versions WHERE version = $1",
-    )
-    .bind(active.version)
-    .fetch_optional(&state.db)
-    .await?;
+    let row: Option<(String, String)> =
+        sqlx::query_as("SELECT fingerprint, source FROM vault_kek_versions WHERE version = $1")
+            .bind(active.version)
+            .fetch_optional(&state.db)
+            .await?;
     let (fingerprint, db_source) = match row {
         Some((fp, src)) => (Some(fp), Some(src)),
         None => (None, None),
@@ -1518,13 +1522,12 @@ async fn require_tenant_member(
     if auth.user.is_superuser {
         return Ok(tenant_id);
     }
-    let role: Option<String> = sqlx::query_scalar(
-        "SELECT role FROM memberships WHERE tenant_id = $1 AND user_id = $2",
-    )
-    .bind(tenant_id)
-    .bind(auth.user.id)
-    .fetch_optional(db)
-    .await?;
+    let role: Option<String> =
+        sqlx::query_scalar("SELECT role FROM memberships WHERE tenant_id = $1 AND user_id = $2")
+            .bind(tenant_id)
+            .bind(auth.user.id)
+            .fetch_optional(db)
+            .await?;
     if role.is_some() {
         Ok(tenant_id)
     } else {
@@ -1660,8 +1663,7 @@ pub async fn upsert_agent_vault(
     // Encrypt envs as a single JSON blob.
     let plaintext = encode_vault_envs(&envs)?;
     let active = kek.active().await.map_err(map_kek_err)?;
-    let env_seal = crypto::encrypt_with_fresh_dek(&plaintext)
-        .map_err(|e| AppError::Internal(e))?;
+    let env_seal = crypto::encrypt_with_fresh_dek(&plaintext).map_err(|e| AppError::Internal(e))?;
     let aad_label = vault_aad_label(&req.id);
     let wrapped = crypto::wrap_dek(&active.material, &env_seal.dek, &tenant_id, &aad_label)
         .map_err(|e| AppError::Internal(e))?;
@@ -1848,15 +1850,14 @@ pub async fn delete_agent_vault(
 ) -> AppResult<Json<serde_json::Value>> {
     let tenant_id = require_tenant_member(&state.db, &auth, &headers).await?;
     let user_id = auth.user.id;
-    let n = sqlx::query(
-        "DELETE FROM agent_vaults WHERE id = $1 AND tenant_id = $2 AND user_id = $3",
-    )
-    .bind(id)
-    .bind(tenant_id)
-    .bind(user_id)
-    .execute(&state.db)
-    .await?
-    .rows_affected();
+    let n =
+        sqlx::query("DELETE FROM agent_vaults WHERE id = $1 AND tenant_id = $2 AND user_id = $3")
+            .bind(id)
+            .bind(tenant_id)
+            .bind(user_id)
+            .execute(&state.db)
+            .await?
+            .rows_affected();
     if n == 0 {
         return Err(AppError::NotFound);
     }

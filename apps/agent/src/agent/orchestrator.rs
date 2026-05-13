@@ -194,13 +194,7 @@ impl OrchestratorBuilder {
     }
 
     /// Add a parallel subtask.
-    pub fn parallel(
-        mut self,
-        id: &str,
-        agent_type: &str,
-        description: &str,
-        prompt: &str,
-    ) -> Self {
+    pub fn parallel(mut self, id: &str, agent_type: &str, description: &str, prompt: &str) -> Self {
         self.tasks.push(SubTaskBuilder {
             description: description.to_string(),
             agent_type: agent_type.to_string(),
@@ -370,17 +364,16 @@ fn compute_execution_plan(tasks: &[SubTask]) -> ExecutionPlan {
     while !remaining.is_empty() {
         let ready: Vec<String> = remaining
             .iter()
-            .filter(|t| {
-                t.depends_on
-                    .iter()
-                    .all(|dep| assigned.contains_key(dep))
-            })
+            .filter(|t| t.depends_on.iter().all(|dep| assigned.contains_key(dep)))
             .map(|t| t.id.clone())
             .collect();
 
         if ready.is_empty() {
             // Circular dependency — force remaining into current wave
-            warn!("Circular dependency detected, forcing remaining tasks into wave {}", wave_idx);
+            warn!(
+                "Circular dependency detected, forcing remaining tasks into wave {}",
+                wave_idx
+            );
             let forced: Vec<String> = remaining.iter().map(|t| t.id.clone()).collect();
             for id in &forced {
                 assigned.insert(id.clone(), wave_idx);
@@ -423,7 +416,10 @@ impl Orchestrator {
     /// Submit an orchestration session and begin execution.
     ///
     /// Returns the session ID. Use `get_session()` to poll status.
-    pub async fn submit(&self, mut session: OrchestratorSession) -> Result<String, OrchestratorError> {
+    pub async fn submit(
+        &self,
+        mut session: OrchestratorSession,
+    ) -> Result<String, OrchestratorError> {
         if session.tasks.len() > self.config.max_fan_out {
             return Err(OrchestratorError::TooManyTasks {
                 max: self.config.max_fan_out,
@@ -439,9 +435,14 @@ impl Orchestrator {
             .await
             .insert(session_id.clone(), session);
 
-        self.broadcast_event(&session_id, "orchestrator_session_started", serde_json::json!({
-            "session_id": session_id,
-        })).await;
+        self.broadcast_event(
+            &session_id,
+            "orchestrator_session_started",
+            serde_json::json!({
+                "session_id": session_id,
+            }),
+        )
+        .await;
 
         info!(session_id = %session_id, "orchestrator session submitted");
         Ok(session_id)
@@ -452,11 +453,12 @@ impl Orchestrator {
     /// Called by the agent runtime loop. Returns the tasks that should be spawned.
     pub async fn next_wave(&self, session_id: &str) -> Result<Vec<SubTask>, OrchestratorError> {
         let mut sessions = self.sessions.write().await;
-        let session = sessions
-            .get_mut(session_id)
-            .ok_or_else(|| OrchestratorError::SessionNotFound {
-                id: session_id.to_string(),
-            })?;
+        let session =
+            sessions
+                .get_mut(session_id)
+                .ok_or_else(|| OrchestratorError::SessionNotFound {
+                    id: session_id.to_string(),
+                })?;
 
         // Find the current wave (lowest wave number with pending tasks)
         let current_wave = session
@@ -476,12 +478,9 @@ impl Orchestrator {
             .iter()
             .filter(|t| t.wave == wave && t.status == SubTaskStatus::Pending)
             .filter(|t| {
-                t.depends_on.iter().all(|dep_id| {
-                    session
-                        .results
-                        .get(dep_id)
-                        .is_some_and(|r| r.success)
-                })
+                t.depends_on
+                    .iter()
+                    .all(|dep_id| session.results.get(dep_id).is_some_and(|r| r.success))
             })
             .cloned()
             .collect();
@@ -493,12 +492,17 @@ impl Orchestrator {
             }
         }
 
-        self.broadcast_event(session_id, "orchestrator_wave_started", serde_json::json!({
-            "session_id": session_id,
-            "wave": wave,
-            "task_count": ready_tasks.len(),
-            "task_ids": ready_tasks.iter().map(|t| &t.id).collect::<Vec<_>>(),
-        })).await;
+        self.broadcast_event(
+            session_id,
+            "orchestrator_wave_started",
+            serde_json::json!({
+                "session_id": session_id,
+                "wave": wave,
+                "task_count": ready_tasks.len(),
+                "task_ids": ready_tasks.iter().map(|t| &t.id).collect::<Vec<_>>(),
+            }),
+        )
+        .await;
 
         info!(
             session_id = %session_id,
@@ -518,11 +522,12 @@ impl Orchestrator {
         agent_id: AgentId,
     ) -> Result<(), OrchestratorError> {
         let mut sessions = self.sessions.write().await;
-        let session = sessions
-            .get_mut(session_id)
-            .ok_or_else(|| OrchestratorError::SessionNotFound {
-                id: session_id.to_string(),
-            })?;
+        let session =
+            sessions
+                .get_mut(session_id)
+                .ok_or_else(|| OrchestratorError::SessionNotFound {
+                    id: session_id.to_string(),
+                })?;
 
         if let Some(task) = session.tasks.iter_mut().find(|t| t.id == task_id) {
             task.status = SubTaskStatus::Running;
@@ -540,11 +545,12 @@ impl Orchestrator {
         result: SubTaskResult,
     ) -> Result<SessionStatus, OrchestratorError> {
         let mut sessions = self.sessions.write().await;
-        let session = sessions
-            .get_mut(session_id)
-            .ok_or_else(|| OrchestratorError::SessionNotFound {
-                id: session_id.to_string(),
-            })?;
+        let session =
+            sessions
+                .get_mut(session_id)
+                .ok_or_else(|| OrchestratorError::SessionNotFound {
+                    id: session_id.to_string(),
+                })?;
 
         let task_id = result.task_id.clone();
 
@@ -562,10 +568,7 @@ impl Orchestrator {
         session.results.insert(task_id.clone(), result);
 
         // Check if session is complete
-        let all_terminal = session
-            .tasks
-            .iter()
-            .all(|t| t.status.is_terminal());
+        let all_terminal = session.tasks.iter().all(|t| t.status.is_terminal());
 
         if all_terminal {
             let any_failed = session
@@ -616,11 +619,16 @@ impl Orchestrator {
 
         let status = session.status;
 
-        self.broadcast_event(session_id, "orchestrator_task_completed", serde_json::json!({
-            "session_id": session_id,
-            "task_id": task_id,
-            "session_status": status,
-        })).await;
+        self.broadcast_event(
+            session_id,
+            "orchestrator_task_completed",
+            serde_json::json!({
+                "session_id": session_id,
+                "task_id": task_id,
+                "session_status": status,
+            }),
+        )
+        .await;
 
         Ok(status)
     }
@@ -641,11 +649,12 @@ impl Orchestrator {
     /// Cancel a session and all its pending tasks.
     pub async fn cancel_session(&self, session_id: &str) -> Result<(), OrchestratorError> {
         let mut sessions = self.sessions.write().await;
-        let session = sessions
-            .get_mut(session_id)
-            .ok_or_else(|| OrchestratorError::SessionNotFound {
-                id: session_id.to_string(),
-            })?;
+        let session =
+            sessions
+                .get_mut(session_id)
+                .ok_or_else(|| OrchestratorError::SessionNotFound {
+                    id: session_id.to_string(),
+                })?;
 
         session.status = SessionStatus::Cancelled;
         for task in &mut session.tasks {
@@ -665,11 +674,12 @@ impl Orchestrator {
         session_id: &str,
     ) -> Result<AggregatedResults, OrchestratorError> {
         let sessions = self.sessions.read().await;
-        let session = sessions
-            .get(session_id)
-            .ok_or_else(|| OrchestratorError::SessionNotFound {
-                id: session_id.to_string(),
-            })?;
+        let session =
+            sessions
+                .get(session_id)
+                .ok_or_else(|| OrchestratorError::SessionNotFound {
+                    id: session_id.to_string(),
+                })?;
 
         let total_tasks = session.tasks.len();
         let completed = session
@@ -732,7 +742,12 @@ impl Orchestrator {
             .count();
         let failed = sessions
             .values()
-            .filter(|s| matches!(s.status, SessionStatus::Failed | SessionStatus::PartialFailure))
+            .filter(|s| {
+                matches!(
+                    s.status,
+                    SessionStatus::Failed | SessionStatus::PartialFailure
+                )
+            })
             .count();
 
         let active_agents = self.config.max_concurrent_agents - self.semaphore.available_permits();
@@ -749,10 +764,7 @@ impl Orchestrator {
     }
 
     async fn broadcast_event(&self, session_id: &str, event_name: &str, data: serde_json::Value) {
-        let event = StreamEvent::new(
-            StreamEventType::Custom(event_name.to_string()),
-            data,
-        );
+        let event = StreamEvent::new(StreamEventType::Custom(event_name.to_string()), data);
         self.broadcaster.broadcast(event);
     }
 }
@@ -891,11 +903,7 @@ impl InboxStore {
     pub async fn read_unread(&self, agent_id: &str) -> Vec<InboxMessage> {
         let mut inboxes = self.inboxes.write().await;
         let inbox = inboxes.entry(agent_id.to_string()).or_default();
-        let unread: Vec<InboxMessage> = inbox
-            .iter()
-            .filter(|m| !m.read)
-            .cloned()
-            .collect();
+        let unread: Vec<InboxMessage> = inbox.iter().filter(|m| !m.read).cloned().collect();
 
         for msg in inbox.iter_mut() {
             msg.read = true;
@@ -935,20 +943,40 @@ mod tests {
     fn test_execution_plan_parallel() {
         let tasks = vec![
             SubTask {
-                id: "a".into(), description: "task A".into(), agent_type: "worker".into(),
-                prompt: "do A".into(), execution_mode: ExecutionMode::Parallel,
-                status: SubTaskStatus::Pending, depends_on: vec![], wave: 0,
-                agent_id: None, created_at: Utc::now(), started_at: None,
-                completed_at: None, timeout_secs: 60, isolated: false,
-                model: None, allowed_tools: None,
+                id: "a".into(),
+                description: "task A".into(),
+                agent_type: "worker".into(),
+                prompt: "do A".into(),
+                execution_mode: ExecutionMode::Parallel,
+                status: SubTaskStatus::Pending,
+                depends_on: vec![],
+                wave: 0,
+                agent_id: None,
+                created_at: Utc::now(),
+                started_at: None,
+                completed_at: None,
+                timeout_secs: 60,
+                isolated: false,
+                model: None,
+                allowed_tools: None,
             },
             SubTask {
-                id: "b".into(), description: "task B".into(), agent_type: "worker".into(),
-                prompt: "do B".into(), execution_mode: ExecutionMode::Parallel,
-                status: SubTaskStatus::Pending, depends_on: vec![], wave: 0,
-                agent_id: None, created_at: Utc::now(), started_at: None,
-                completed_at: None, timeout_secs: 60, isolated: false,
-                model: None, allowed_tools: None,
+                id: "b".into(),
+                description: "task B".into(),
+                agent_type: "worker".into(),
+                prompt: "do B".into(),
+                execution_mode: ExecutionMode::Parallel,
+                status: SubTaskStatus::Pending,
+                depends_on: vec![],
+                wave: 0,
+                agent_id: None,
+                created_at: Utc::now(),
+                started_at: None,
+                completed_at: None,
+                timeout_secs: 60,
+                isolated: false,
+                model: None,
+                allowed_tools: None,
             },
         ];
 
@@ -961,28 +989,58 @@ mod tests {
     fn test_execution_plan_sequential_deps() {
         let tasks = vec![
             SubTask {
-                id: "setup".into(), description: "setup".into(), agent_type: "worker".into(),
-                prompt: "setup".into(), execution_mode: ExecutionMode::Sequential,
-                status: SubTaskStatus::Pending, depends_on: vec![], wave: 0,
-                agent_id: None, created_at: Utc::now(), started_at: None,
-                completed_at: None, timeout_secs: 60, isolated: false,
-                model: None, allowed_tools: None,
+                id: "setup".into(),
+                description: "setup".into(),
+                agent_type: "worker".into(),
+                prompt: "setup".into(),
+                execution_mode: ExecutionMode::Sequential,
+                status: SubTaskStatus::Pending,
+                depends_on: vec![],
+                wave: 0,
+                agent_id: None,
+                created_at: Utc::now(),
+                started_at: None,
+                completed_at: None,
+                timeout_secs: 60,
+                isolated: false,
+                model: None,
+                allowed_tools: None,
             },
             SubTask {
-                id: "build".into(), description: "build".into(), agent_type: "worker".into(),
-                prompt: "build".into(), execution_mode: ExecutionMode::Sequential,
-                status: SubTaskStatus::Pending, depends_on: vec!["setup".into()], wave: 0,
-                agent_id: None, created_at: Utc::now(), started_at: None,
-                completed_at: None, timeout_secs: 60, isolated: false,
-                model: None, allowed_tools: None,
+                id: "build".into(),
+                description: "build".into(),
+                agent_type: "worker".into(),
+                prompt: "build".into(),
+                execution_mode: ExecutionMode::Sequential,
+                status: SubTaskStatus::Pending,
+                depends_on: vec!["setup".into()],
+                wave: 0,
+                agent_id: None,
+                created_at: Utc::now(),
+                started_at: None,
+                completed_at: None,
+                timeout_secs: 60,
+                isolated: false,
+                model: None,
+                allowed_tools: None,
             },
             SubTask {
-                id: "test".into(), description: "test".into(), agent_type: "worker".into(),
-                prompt: "test".into(), execution_mode: ExecutionMode::Sequential,
-                status: SubTaskStatus::Pending, depends_on: vec!["build".into()], wave: 0,
-                agent_id: None, created_at: Utc::now(), started_at: None,
-                completed_at: None, timeout_secs: 60, isolated: false,
-                model: None, allowed_tools: None,
+                id: "test".into(),
+                description: "test".into(),
+                agent_type: "worker".into(),
+                prompt: "test".into(),
+                execution_mode: ExecutionMode::Sequential,
+                status: SubTaskStatus::Pending,
+                depends_on: vec!["build".into()],
+                wave: 0,
+                agent_id: None,
+                created_at: Utc::now(),
+                started_at: None,
+                completed_at: None,
+                timeout_secs: 60,
+                isolated: false,
+                model: None,
+                allowed_tools: None,
             },
         ];
 
@@ -998,36 +1056,76 @@ mod tests {
         // Diamond: A → B, A → C, B+C → D
         let tasks = vec![
             SubTask {
-                id: "a".into(), description: "A".into(), agent_type: "w".into(),
-                prompt: "a".into(), execution_mode: ExecutionMode::Parallel,
-                status: SubTaskStatus::Pending, depends_on: vec![], wave: 0,
-                agent_id: None, created_at: Utc::now(), started_at: None,
-                completed_at: None, timeout_secs: 60, isolated: false,
-                model: None, allowed_tools: None,
+                id: "a".into(),
+                description: "A".into(),
+                agent_type: "w".into(),
+                prompt: "a".into(),
+                execution_mode: ExecutionMode::Parallel,
+                status: SubTaskStatus::Pending,
+                depends_on: vec![],
+                wave: 0,
+                agent_id: None,
+                created_at: Utc::now(),
+                started_at: None,
+                completed_at: None,
+                timeout_secs: 60,
+                isolated: false,
+                model: None,
+                allowed_tools: None,
             },
             SubTask {
-                id: "b".into(), description: "B".into(), agent_type: "w".into(),
-                prompt: "b".into(), execution_mode: ExecutionMode::Parallel,
-                status: SubTaskStatus::Pending, depends_on: vec!["a".into()], wave: 0,
-                agent_id: None, created_at: Utc::now(), started_at: None,
-                completed_at: None, timeout_secs: 60, isolated: false,
-                model: None, allowed_tools: None,
+                id: "b".into(),
+                description: "B".into(),
+                agent_type: "w".into(),
+                prompt: "b".into(),
+                execution_mode: ExecutionMode::Parallel,
+                status: SubTaskStatus::Pending,
+                depends_on: vec!["a".into()],
+                wave: 0,
+                agent_id: None,
+                created_at: Utc::now(),
+                started_at: None,
+                completed_at: None,
+                timeout_secs: 60,
+                isolated: false,
+                model: None,
+                allowed_tools: None,
             },
             SubTask {
-                id: "c".into(), description: "C".into(), agent_type: "w".into(),
-                prompt: "c".into(), execution_mode: ExecutionMode::Parallel,
-                status: SubTaskStatus::Pending, depends_on: vec!["a".into()], wave: 0,
-                agent_id: None, created_at: Utc::now(), started_at: None,
-                completed_at: None, timeout_secs: 60, isolated: false,
-                model: None, allowed_tools: None,
+                id: "c".into(),
+                description: "C".into(),
+                agent_type: "w".into(),
+                prompt: "c".into(),
+                execution_mode: ExecutionMode::Parallel,
+                status: SubTaskStatus::Pending,
+                depends_on: vec!["a".into()],
+                wave: 0,
+                agent_id: None,
+                created_at: Utc::now(),
+                started_at: None,
+                completed_at: None,
+                timeout_secs: 60,
+                isolated: false,
+                model: None,
+                allowed_tools: None,
             },
             SubTask {
-                id: "d".into(), description: "D".into(), agent_type: "w".into(),
-                prompt: "d".into(), execution_mode: ExecutionMode::Sequential,
-                status: SubTaskStatus::Pending, depends_on: vec!["b".into(), "c".into()], wave: 0,
-                agent_id: None, created_at: Utc::now(), started_at: None,
-                completed_at: None, timeout_secs: 60, isolated: false,
-                model: None, allowed_tools: None,
+                id: "d".into(),
+                description: "D".into(),
+                agent_type: "w".into(),
+                prompt: "d".into(),
+                execution_mode: ExecutionMode::Sequential,
+                status: SubTaskStatus::Pending,
+                depends_on: vec!["b".into(), "c".into()],
+                wave: 0,
+                agent_id: None,
+                created_at: Utc::now(),
+                started_at: None,
+                completed_at: None,
+                timeout_secs: 60,
+                isolated: false,
+                model: None,
+                allowed_tools: None,
             },
         ];
 
@@ -1043,10 +1141,21 @@ mod tests {
     fn test_builder_fluent_api() {
         let session = OrchestratorBuilder::new("refactor project")
             .parallel("lint", "explorer", "Check linting", "Run lint checks")
-            .parallel("security", "explorer", "Security scan", "Run security analysis")
+            .parallel(
+                "security",
+                "explorer",
+                "Security scan",
+                "Run security analysis",
+            )
             .parallel("tests", "worker", "Run tests", "Execute test suite")
             .with_isolation()
-            .sequential("merge", "worker", "Merge results", "Aggregate all findings", vec!["lint", "security", "tests"])
+            .sequential(
+                "merge",
+                "worker",
+                "Merge results",
+                "Aggregate all findings",
+                vec!["lint", "security", "tests"],
+            )
             .build(900);
 
         assert_eq!(session.tasks.len(), 4);
@@ -1207,6 +1316,11 @@ mod tests {
 
         let session = orch.get_session(&session_id).await.unwrap();
         assert_eq!(session.status, SessionStatus::Cancelled);
-        assert!(session.tasks.iter().all(|t| t.status == SubTaskStatus::Cancelled));
+        assert!(
+            session
+                .tasks
+                .iter()
+                .all(|t| t.status == SubTaskStatus::Cancelled)
+        );
     }
 }

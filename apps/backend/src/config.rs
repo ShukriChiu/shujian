@@ -44,10 +44,8 @@ impl Config {
 
         // Seed defaults match the user's onboarding spec: one tenant
         // ("趣学洋葱教育咨询有限公司") + one admin (admin/admin). All overridable.
-        let seed_tenant_slug =
-            env::var("SEED_TENANT_SLUG").unwrap_or_else(|_| "onion".into());
-        let seed_tenant_name =
-            env::var("SEED_TENANT_NAME").unwrap_or_else(|_| "趣学洋葱".into());
+        let seed_tenant_slug = env::var("SEED_TENANT_SLUG").unwrap_or_else(|_| "onion".into());
+        let seed_tenant_name = env::var("SEED_TENANT_NAME").unwrap_or_else(|_| "趣学洋葱".into());
         let seed_tenant_display_name = env::var("SEED_TENANT_DISPLAY_NAME")
             .unwrap_or_else(|_| "趣学洋葱教育咨询有限公司".into());
         let seed_admin_identifier =

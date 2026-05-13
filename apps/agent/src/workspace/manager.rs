@@ -28,7 +28,10 @@ impl WorkspaceManager {
             ("soul.md", "# Agent Soul\n\n(请配置此 Agent 的人格定义)\n"),
             ("focus.md", "# Focus Items\n\n(当前无关注项)\n"),
             ("memory/memory.md", "# Long-term Memory\n\n(暂无记忆)\n"),
-            ("memory/wisdom.md", "# Wisdom\n\n(跨任务经验沉淀，由 Agent 自动维护)\n"),
+            (
+                "memory/wisdom.md",
+                "# Wisdom\n\n(跨任务经验沉淀，由 Agent 自动维护)\n",
+            ),
         ];
 
         for (file, default_content) in defaults {

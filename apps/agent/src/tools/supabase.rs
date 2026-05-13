@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use reqwest::Client;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use super::{Tool, ToolContext};
 
@@ -11,7 +11,9 @@ pub struct SupabaseQueryTool;
 
 #[async_trait]
 impl Tool for SupabaseQueryTool {
-    fn name(&self) -> &str { "query_supabase" }
+    fn name(&self) -> &str {
+        "query_supabase"
+    }
 
     fn description(&self) -> &str {
         "在 Supabase 数仓上执行 SQL 查询（只读 SELECT）。返回 JSON 格式结果。用于查询商品、销售、库存、客户等数据。"
@@ -32,17 +34,14 @@ impl Tool for SupabaseQueryTool {
 
         let trimmed = sql.trim().to_uppercase();
         if !trimmed.starts_with("SELECT") && !trimmed.starts_with("WITH") {
-            anyhow::bail!("只允许 SELECT / WITH 查询，拒绝执行: {}", &sql[..sql.len().min(100)]);
+            anyhow::bail!(
+                "只允许 SELECT / WITH 查询，拒绝执行: {}",
+                &sql[..sql.len().min(100)]
+            );
         }
 
-        let url = ctx
-            .supabase_url
-            .as_deref()
-            .context("未配置 SUPABASE_URL")?;
-        let key = ctx
-            .supabase_key
-            .as_deref()
-            .context("未配置 SUPABASE_KEY")?;
+        let url = ctx.supabase_url.as_deref().context("未配置 SUPABASE_URL")?;
+        let key = ctx.supabase_key.as_deref().context("未配置 SUPABASE_KEY")?;
 
         let client = Client::new();
         let resp = client
@@ -59,7 +58,11 @@ impl Tool for SupabaseQueryTool {
         let text = resp.text().await.context("读取 Supabase 响应失败")?;
 
         if !status.is_success() {
-            return Ok(format!("查询失败 ({}): {}", status, &text[..text.len().min(500)]));
+            return Ok(format!(
+                "查询失败 ({}): {}",
+                status,
+                &text[..text.len().min(500)]
+            ));
         }
 
         let rows: Value = serde_json::from_str(&text).unwrap_or(json!(text));

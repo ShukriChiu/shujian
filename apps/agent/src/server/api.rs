@@ -1,9 +1,9 @@
 use axum::{
+    Router,
     extract::State,
     http::StatusCode,
     response::Json,
     routing::{get, post},
-    Router,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -189,12 +189,18 @@ async fn submit_task(
     Json(req): Json<TaskRequest>,
 ) -> Result<Json<TaskSubmitResponse>, (StatusCode, String)> {
     let agent_name = req.agent.clone().unwrap_or_else(|| {
-        state.config.default_agent().map(|a| a.name.clone()).unwrap_or_default()
+        state
+            .config
+            .default_agent()
+            .map(|a| a.name.clone())
+            .unwrap_or_default()
     });
 
-    let agent_config = state.config.get_agent(&agent_name).cloned().ok_or_else(|| {
-        (StatusCode::NOT_FOUND, format!("未知 Agent: {}", agent_name))
-    })?;
+    let agent_config = state
+        .config
+        .get_agent(&agent_name)
+        .cloned()
+        .ok_or_else(|| (StatusCode::NOT_FOUND, format!("未知 Agent: {}", agent_name)))?;
 
     let task_id = uuid::Uuid::new_v4().to_string()[..8].to_string();
 
@@ -236,7 +242,10 @@ async fn submit_task(
             }
             Err(e) => {
                 s.tasks_failed += 1;
-                info!("任务失败: [{}] {} — {}", task_id_clone, agent_config.name, e);
+                info!(
+                    "任务失败: [{}] {} — {}",
+                    task_id_clone, agent_config.name, e
+                );
             }
         }
     });
@@ -253,16 +262,24 @@ async fn run_task_sync(
     Json(req): Json<TaskRequest>,
 ) -> Result<Json<TaskResponse>, (StatusCode, String)> {
     let agent_name = req.agent.clone().unwrap_or_else(|| {
-        state.config.default_agent().map(|a| a.name.clone()).unwrap_or_default()
+        state
+            .config
+            .default_agent()
+            .map(|a| a.name.clone())
+            .unwrap_or_default()
     });
 
-    let agent_config = state.config.get_agent(&agent_name).cloned().ok_or_else(|| {
-        (StatusCode::NOT_FOUND, format!("未知 Agent: {}", agent_name))
-    })?;
+    let agent_config = state
+        .config
+        .get_agent(&agent_name)
+        .cloned()
+        .ok_or_else(|| (StatusCode::NOT_FOUND, format!("未知 Agent: {}", agent_name)))?;
 
-    let _permit = state.semaphore.acquire().await.map_err(|e| {
-        (StatusCode::SERVICE_UNAVAILABLE, format!("并发限制: {}", e))
-    })?;
+    let _permit = state
+        .semaphore
+        .acquire()
+        .await
+        .map_err(|e| (StatusCode::SERVICE_UNAVAILABLE, format!("并发限制: {}", e)))?;
 
     match execute_agent_task(
         &state.config,
@@ -296,9 +313,9 @@ async fn execute_agent_task(
     let llm_config = resolved.to_llm_config();
     let llm: Box<dyn LlmClient> = llm::client::create_llm_client(&llm_config, &api_key);
 
-    let workspace = Arc::new(WorkspaceManager::new(
-        std::path::PathBuf::from(&agent_config.workspace),
-    ));
+    let workspace = Arc::new(WorkspaceManager::new(std::path::PathBuf::from(
+        &agent_config.workspace,
+    )));
     workspace.ensure_structure()?;
 
     let mut tools = ToolRegistry::new();
@@ -327,12 +344,16 @@ async fn execute_agent_task(
 
     let mut messages = vec![
         Message::System { content: system },
-        Message::User { content: user_content },
+        Message::User {
+            content: user_content,
+        },
     ];
 
     let engine = AgentEngine::new(resolved.max_rounds)
         .with_discipline(agent_config.discipline.clone())
         .with_workspace(workspace);
 
-    engine.run(llm.as_ref(), &mut messages, &tools, tool_ctx, false).await
+    engine
+        .run(llm.as_ref(), &mut messages, &tools, tool_ctx, false)
+        .await
 }
