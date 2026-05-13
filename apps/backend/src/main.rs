@@ -1,9 +1,10 @@
 use std::time::Duration;
 
 use anyhow::Result;
+use axum::extract::DefaultBodyLimit;
 use axum::http::header::{AUTHORIZATION, CONTENT_TYPE};
 use axum::http::{HeaderName, HeaderValue, Method};
-use axum::routing::{delete, get, post};
+use axum::routing::{delete, get, patch, post};
 use axum::Router;
 use tower_http::cors::{AllowOrigin, CorsLayer};
 use tower_http::request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer};
@@ -161,21 +162,67 @@ fn persona_routes() -> Router<AppState> {
         .route("/{slug}/issue", post(v::issue_persona))
 }
 
-/// Routes for `apps/future` — the AI 学生实战人才池管理台.
+/// Routes for `apps/future` — student intake CRM.
 ///
-/// V1 ships a single composite state endpoint (`GET`/`PUT /v1/future/state`).
-/// Tables are namespaced with `future_*` so this app stays cleanly isolated
-/// from the rest of the backend.
+/// Two surfaces nested under `/v1/future`:
 ///
-/// When per-entity mutations become useful (collaborative editing, large
-/// payloads, fine-grained audit), promote `handlers/future.rs` into
-/// `handlers/future/{students,projects,squads,feedback}.rs` and add routes
-/// here. Existing `state` endpoint stays for read convenience.
+/// * **Public** under `/apply/:token` — no `AuthContext` extraction, so
+///   strangers can fetch tenant info and POST a survey. Token resolves
+///   to a tenant via `future_share_links`. The submit handler pulls
+///   `axum::extract::Multipart` so we raise the body limit just on
+///   that endpoint to fit a 5 MB resume + JSON overhead.
+///
+/// * **Admin** at the root — every handler here extracts `AuthContext`
+///   and calls `require_tenant`, matching the rest of the backend.
 fn future_routes() -> Router<AppState> {
-    Router::new().route(
-        "/state",
-        get(handlers::future::get_state).put(handlers::future::put_state),
-    )
+    use handlers::future::{apply, assignments, notes, projects, share_link, students};
+
+    let public = Router::new()
+        .route("/apply/{token}", get(apply::get_tenant_info).post(apply::submit))
+        // 8 MB ≈ 5 MB resume cap + JSON overhead. Tighter than Axum's
+        // 2 MB default, looser than the per-file CHECK in
+        // future_resumes (5 MB).
+        .layer(DefaultBodyLimit::max(8 * 1024 * 1024));
+
+    let admin = Router::new()
+        .route("/students", get(students::list))
+        .route(
+            "/students/{id}",
+            get(students::get).patch(students::update).delete(students::delete),
+        )
+        .route("/students/{id}/resume", get(students::download_resume))
+        .route(
+            "/students/{id}/notes",
+            get(notes::list).post(notes::create),
+        )
+        .route(
+            "/students/{student_id}/notes/{note_id}",
+            delete(notes::delete),
+        )
+        .route(
+            "/students/{id}/assignments",
+            get(assignments::list_for_student).post(assignments::create),
+        )
+        .route(
+            "/students/{student_id}/assignments/{project_id}",
+            patch(assignments::update).delete(assignments::delete),
+        )
+        .route("/projects", get(projects::list).post(projects::create))
+        .route(
+            "/projects/{id}",
+            get(projects::get).patch(projects::update).delete(projects::delete),
+        )
+        .route(
+            "/projects/{id}/assignments",
+            get(assignments::list_for_project),
+        )
+        .route(
+            "/share-link",
+            get(share_link::get_share_link).patch(share_link::update_share_link),
+        )
+        .route("/share-link/rotate", post(share_link::rotate_share_link));
+
+    public.merge(admin)
 }
 
 fn build_cors(cfg: &Config) -> CorsLayer {

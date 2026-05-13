@@ -1,100 +1,216 @@
 /**
- * Types describing the contract between `apps/backend` (Rust + Axum) and
- * `apps/future` (React + Vite) for the AI 学生实战人才池管理台.
+ * Wire types for `apps/future` — student intake CRM.
  *
- * Keep these in sync with:
- *  - apps/backend/src/handlers/future.rs   (Rust DTOs, camelCase serde)
- *  - apps/backend/migrations/0005_*.sql    (CHECK constraints define the unions)
- *
- * Per-app convention:
- *  - Tables: `future_*` prefix.
- *  - HTTP route: `/v1/future/*`.
- *  - Types: this file. Frontend imports as `import type { ... } from "@shujian/shared-types"`.
+ * Mirrors `apps/backend/src/handlers/future/*` (camelCase via serde
+ * `rename_all`). Source of truth for both producer and consumer; ensure
+ * any rename here lands in the same commit as the matching Rust struct.
  */
 
-export type SkillKey =
-  | "frontend"
-  | "backend"
-  | "design"
-  | "product"
-  | "research"
-  | "data"
-  | "comms";
+// ─── Enums ────────────────────────────────────────────────────────────
 
-export type Background =
-  | "产品设计"
-  | "计算机"
-  | "生医工程"
-  | "商科"
-  | "人文社科"
-  | "其他";
+export type FutureGradeYear =
+  | 'freshman'
+  | 'sophomore'
+  | 'junior'
+  | 'senior'
+  | 'master_1'
+  | 'master_2'
+  | 'master_3'
+  | 'phd'
+  | 'alumni'
+  | 'other'
 
-export type StudentStatus = "active" | "spotlight" | "pending" | "paused";
+export type FutureStudentStatus =
+  | 'new'
+  | 'reviewing'
+  | 'interview'
+  | 'accepted'
+  | 'rejected'
+  | 'in_project'
+  | 'alumni'
+  | 'archived'
 
-export type ProjectStatus = "recruiting" | "sailing" | "docked" | "shipped";
+export type FutureProjectStatus =
+  | 'planning'
+  | 'active'
+  | 'paused'
+  | 'completed'
+  | 'archived'
 
-export type ProjectSource =
-  | "友联"
-  | "三诺"
-  | "趣学洋葱"
-  | "个人实验室"
-  | "外部合作";
+export type FutureAssignmentStatus = 'active' | 'completed' | 'left'
 
-export type FeedbackSignal =
-  | "shipping"
-  | "learning"
-  | "breakthrough"
-  | "needs_followup";
+export type FutureNoteKind =
+  | 'general'
+  | 'intake'
+  | 'interview'
+  | 'checkin'
+  | 'milestone'
+  | 'concern'
 
-export interface Student {
-  id: string;
-  name: string;
-  alias?: string;
-  initial: string;
-  background: Background;
-  school: string;
-  major: string;
-  grade: string;
-  skills: Partial<Record<SkillKey, number>>;
-  availability: string;
-  status: StudentStatus;
-  intro: string;
-  joinedAt: string;
+// ─── Public surface (apply page) ──────────────────────────────────────
+
+export interface FuturePublicTenantInfo {
+  tenantName: string
+  label: string
+  isOpen: boolean
 }
 
-export interface Project {
-  id: string;
-  name: string;
-  codename: string;
-  source: ProjectSource;
-  difficulty: 1 | 2 | 3;
-  skillNeeds: Partial<Record<SkillKey, number>>;
-  teamSize: number;
-  status: ProjectStatus;
-  brief: string;
-  nextMilestone: string;
-  startedAt: string;
+export interface FutureApplyPayload {
+  fullName: string
+  wechatId?: string
+  wechatNickname?: string
+  email?: string
+  phone?: string
+  university?: string
+  major?: string
+  gradeYear?: FutureGradeYear
+  aiUnderstanding?: string
+  aiExperience?: string
+  pastProjects?: string
+  motivation?: string
 }
 
-export interface Squad {
-  studentId: string;
-  projectId: string;
-  role: string;
-  joinedAt: string;
+export interface FutureApplyResult {
+  studentId: string
 }
 
-export interface Feedback {
-  id: string;
-  studentId: string;
-  projectId?: string;
-  date: string;
-  signal: FeedbackSignal;
-  notes: string;
+// ─── Admin surface ────────────────────────────────────────────────────
+
+export interface FutureStudentSummary {
+  id: string
+  fullName: string
+  wechatNickname: string
+  university: string
+  major: string
+  gradeYear: FutureGradeYear
+  status: FutureStudentStatus
+  tags: string[]
+  hasResume: boolean
+  /** ISO-8601 timestamp */
+  submittedAt: string
+  /** ISO-8601 timestamp */
+  updatedAt: string
 }
 
-export interface FutureWarRoomData {
-  students: Student[];
-  projects: Project[];
-  squads: Squad[];
-  feedback: Feedback[];
+export interface FutureStudentDetail extends FutureStudentSummary {
+  wechatId: string
+  email: string
+  phone: string
+  aiUnderstanding: string
+  aiExperience: string
+  pastProjects: string
+  motivation: string
+  adminNotes: string
+  /** ISO-8601 timestamp; null until first admin action moves status off "new" */
+  reviewedAt: string | null
+}
+
+/**
+ * Partial-update payload. `undefined` preserves the field; a value
+ * overwrites. Pass `tags: []` to clear tags.
+ */
+export interface FutureUpdateStudent {
+  fullName?: string
+  wechatId?: string
+  wechatNickname?: string
+  email?: string
+  phone?: string
+  university?: string
+  major?: string
+  gradeYear?: FutureGradeYear
+  aiUnderstanding?: string
+  aiExperience?: string
+  pastProjects?: string
+  motivation?: string
+  status?: FutureStudentStatus
+  adminNotes?: string
+  tags?: string[]
+}
+
+export interface FutureProject {
+  id: string
+  name: string
+  summary: string
+  status: FutureProjectStatus
+  /** ISO-8601 date YYYY-MM-DD */
+  startedAt: string | null
+  endedAt: string | null
+  createdAt: string
+  updatedAt: string
+  activeMemberCount: number
+}
+
+export interface FutureCreateProject {
+  name: string
+  summary?: string
+  status?: FutureProjectStatus
+  startedAt?: string
+  endedAt?: string
+}
+
+export interface FutureUpdateProject {
+  name?: string
+  summary?: string
+  status?: FutureProjectStatus
+  startedAt?: string | null
+  endedAt?: string | null
+}
+
+export interface FutureAssignment {
+  studentId: string
+  projectId: string
+  studentName: string
+  projectName: string
+  role: string
+  status: FutureAssignmentStatus
+  /** ISO-8601 date */
+  joinedAt: string
+  leftAt: string | null
+  notes: string
+  updatedAt: string
+}
+
+export interface FutureCreateAssignment {
+  projectId: string
+  role?: string
+  status?: FutureAssignmentStatus
+  joinedAt?: string
+  notes?: string
+}
+
+export interface FutureUpdateAssignment {
+  role?: string
+  status?: FutureAssignmentStatus
+  joinedAt?: string
+  leftAt?: string | null
+  notes?: string
+}
+
+export interface FutureNote {
+  id: string
+  studentId: string
+  projectId: string | null
+  projectName: string | null
+  kind: FutureNoteKind
+  body: string
+  authorUserId: string | null
+  authorName: string | null
+  createdAt: string
+}
+
+export interface FutureCreateNote {
+  body: string
+  kind?: FutureNoteKind
+  projectId?: string
+}
+
+export interface FutureShareLink {
+  token: string
+  label: string
+  isOpen: boolean
+}
+
+export interface FutureUpdateShareLink {
+  label?: string
+  isOpen?: boolean
 }

@@ -10,7 +10,7 @@ name = "shujian-backend"
 path = "src/main.rs"
 
 [dependencies]
-axum = { version = "0.8", features = ["macros"] }
+axum = { version = "0.8", features = ["macros", "multipart"] }
 tokio = { version = "1", features = ["full"] }
 tower = "0.5"
 tower-http = { version = "0.6", features = ["cors", "trace", "request-id", "util"] }
