@@ -66,6 +66,7 @@ fn build_router(state: AppState, cfg: &Config) -> Router {
         .nest("/v1/tenants", tenant_routes())
         .nest("/v1/vault", vault_routes())
         .nest("/v1/personas", persona_routes())
+        .nest("/v1/future", future_routes())
         .with_state(state)
         .layer(SetRequestIdLayer::x_request_id(MakeRequestUuid))
         .layer(PropagateRequestIdLayer::x_request_id())
@@ -158,6 +159,23 @@ fn persona_routes() -> Router<AppState> {
         // mints onion JWTs, writes the audit row, returns the env to
         // hand off to cursor-bridge.
         .route("/{slug}/issue", post(v::issue_persona))
+}
+
+/// Routes for `apps/future` — the AI 学生实战人才池管理台.
+///
+/// V1 ships a single composite state endpoint (`GET`/`PUT /v1/future/state`).
+/// Tables are namespaced with `future_*` so this app stays cleanly isolated
+/// from the rest of the backend.
+///
+/// When per-entity mutations become useful (collaborative editing, large
+/// payloads, fine-grained audit), promote `handlers/future.rs` into
+/// `handlers/future/{students,projects,squads,feedback}.rs` and add routes
+/// here. Existing `state` endpoint stays for read convenience.
+fn future_routes() -> Router<AppState> {
+    Router::new().route(
+        "/state",
+        get(handlers::future::get_state).put(handlers::future::put_state),
+    )
 }
 
 fn build_cors(cfg: &Config) -> CorsLayer {

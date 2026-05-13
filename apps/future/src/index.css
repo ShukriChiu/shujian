@@ -1,0 +1,215 @@
+/* ─── Animatable custom properties ──────────────────────────────────── */
+
+@property --coverage {
+  syntax: '<percentage>';
+  inherits: false;
+  initial-value: 0%;
+}
+@property --ink-spread {
+  syntax: '<percentage>';
+  inherits: false;
+  initial-value: 0%;
+}
+@property --seal-rotate {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: -8deg;
+}
+
+/* ─── Design tokens · 米纸朱红 ───────────────────────────────────────── */
+
+:root {
+  /* paper — 米色宣纸 */
+  --paper: oklch(96% 0.022 86);
+  --paper-deep: oklch(94% 0.026 84);
+  --leaf: oklch(98% 0.014 84);
+  --leaf-soft: oklch(97% 0.018 85);
+  --inset: oklch(93% 0.022 80);
+
+  /* ink — 墨黑略带暖 */
+  --ink: oklch(20% 0.012 60);
+  --ink-soft: oklch(36% 0.014 64);
+  --muted: oklch(56% 0.014 68);
+  --faint: oklch(70% 0.014 72);
+
+  /* lines — 发丝 */
+  --hairline: oklch(78% 0.014 78 / 70%);
+  --hairline-strong: oklch(64% 0.018 75 / 80%);
+  --hairline-soft: oklch(82% 0.014 78 / 50%);
+
+  /* signal — 朱砂 + 钢笔靛 + 金箔 */
+  --vermilion: oklch(54% 0.20 28);
+  --vermilion-deep: oklch(46% 0.20 28);
+  --vermilion-soft: oklch(54% 0.20 28 / 12%);
+  --vermilion-ghost: oklch(54% 0.20 28 / 4%);
+
+  --indigo: oklch(38% 0.13 248);
+  --indigo-soft: oklch(38% 0.13 248 / 10%);
+
+  --gold: oklch(60% 0.13 78);
+  --gold-soft: oklch(60% 0.13 78 / 14%);
+
+  --moss: oklch(48% 0.10 145);
+  --moss-soft: oklch(48% 0.10 145 / 12%);
+
+  /* curves */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-in-out-expo: cubic-bezier(0.87, 0, 0.13, 1);
+
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 14px;
+
+  --paper-shadow: 0 1px 0 oklch(72% 0.018 75 / 30%),
+    0 12px 28px oklch(40% 0.04 70 / 8%);
+  --paper-shadow-pop: 0 1px 0 oklch(72% 0.018 75 / 35%),
+    0 24px 48px oklch(40% 0.04 70 / 14%);
+
+  /* type families */
+  --font-serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC',
+    'STSong', ui-serif, Georgia, serif;
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas,
+    monospace;
+
+  font-family: var(--font-sans);
+  color: var(--ink);
+  background: var(--paper);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100svh;
+  background: var(--paper);
+}
+
+body {
+  min-width: 320px;
+  overflow-x: hidden;
+  background-image:
+    /* 极淡的纸纹 */
+    radial-gradient(oklch(70% 0.018 75 / 0.05) 1px, transparent 1px),
+    /* 顶部的暖光 */
+    radial-gradient(
+      ellipse 80% 60% at 50% -20%,
+      oklch(98% 0.025 60 / 0.7),
+      transparent 60%
+    );
+  background-size: 4px 4px, auto;
+  background-attachment: fixed;
+}
+
+#root {
+  min-height: 100svh;
+  isolation: isolate;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
+::selection {
+  background: var(--vermilion);
+  color: var(--paper);
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: oklch(70% 0.014 75 / 50%);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: oklch(55% 0.018 75 / 70%);
+}
+
+/* ─── Typography utilities ──────────────────────────────────────────── */
+
+.serif {
+  font-family: var(--font-serif);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-feature-settings: 'zero', 'ss01';
+  font-variant-numeric: tabular-nums;
+}
+
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.label-cn {
+  font-family: var(--font-serif);
+  font-weight: 500;
+  letter-spacing: 0.12em;
+}
+
+/* writing-mode utility for vertical labels */
+.vertical {
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  letter-spacing: 0.32em;
+}
+
+/* ─── Spinner — used by the sync indicator in the masthead ──────────── */
+
+@keyframes sync-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.sync-spin {
+  animation: sync-spin 1.1s linear infinite;
+  transform-origin: 50% 50%;
+}
+
+/* ─── Reduced motion ────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

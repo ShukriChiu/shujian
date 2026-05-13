@@ -7,6 +7,9 @@ dev-bridge:
 dev-dashboard:
     cd apps/dashboard && bunx vite
 
+dev-future:
+    cd apps/future && bunx vite
+
 dev-agent:
     cd apps/agent && cargo run
 
@@ -36,6 +39,9 @@ build-backend:
 
 build-dashboard:
     cd apps/dashboard && bun install && bunx vite build
+
+build-future:
+    cd apps/future && bun install && bunx vite build
 
 install:
     bun install

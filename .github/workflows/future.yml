@@ -1,0 +1,37 @@
+name: future
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/future/**"
+      - "packages/shared-types/**"
+      - "package.json"
+      - "bun.lock"
+      - ".github/workflows/future.yml"
+  pull_request:
+    paths:
+      - "apps/future/**"
+      - "packages/shared-types/**"
+      - "package.json"
+      - "bun.lock"
+      - ".github/workflows/future.yml"
+  workflow_dispatch:
+
+# Deployment is handled by Cloudflare Pages' GitHub integration
+# (auto-deploys apps/future/ on pushes to main, with PR previews).
+# This workflow is the PR gate: typecheck + build has to pass before merge.
+
+jobs:
+  build:
+    name: build + typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.6
+      - run: bun install --frozen-lockfile
+      - run: bun run --filter '@shujian/shared-types' typecheck
+      - run: cd apps/future && bun run typecheck
+      - run: cd apps/future && bunx vite build
