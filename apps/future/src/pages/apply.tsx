@@ -2,25 +2,18 @@ import { useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { backend } from '../lib/backend'
-import {
-  GRADE_YEAR_META,
-  GRADE_YEAR_ORDER,
-  type FutureGradeYear,
-} from '../lib/types'
 
 const RESUME_MAX_BYTES = 5 * 1024 * 1024
 const RESUME_ACCEPT =
   '.pdf,.doc,.docx,.png,.jpg,.jpeg,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/png,image/jpeg'
 
+const BIRTH_YEAR_MIN = 1940
+
 interface FormState {
   fullName: string
   wechatId: string
-  wechatNickname: string
-  email: string
   phone: string
-  university: string
-  major: string
-  gradeYear: FutureGradeYear
+  birthYear: string
   aiUnderstanding: string
   aiExperience: string
   pastProjects: string
@@ -30,12 +23,8 @@ interface FormState {
 const EMPTY: FormState = {
   fullName: '',
   wechatId: '',
-  wechatNickname: '',
-  email: '',
   phone: '',
-  university: '',
-  major: '',
-  gradeYear: 'junior',
+  birthYear: '',
   aiUnderstanding: '',
   aiExperience: '',
   pastProjects: '',
@@ -43,10 +32,7 @@ const EMPTY: FormState = {
 }
 
 /**
- * Public student application form. Mobile-first single page; all
- * sections render at once so students see the full ask up front (this
- * is a high-trust form that benefits from "5 minutes commitment, here's
- * exactly what we want to know").
+ * Public student application form.
  */
 export function ApplyPage() {
   const { token = '' } = useParams<{ token: string }>()
@@ -101,6 +87,24 @@ export function ApplyPage() {
       setError('请填写姓名')
       return
     }
+    if (!form.wechatId.trim()) {
+      setError('请填写微信号')
+      return
+    }
+    if (!form.phone.trim()) {
+      setError('请填写手机号')
+      return
+    }
+    const y = parseInt(form.birthYear.trim(), 10)
+    const yMax = new Date().getFullYear()
+    if (
+      !Number.isFinite(y) ||
+      y < BIRTH_YEAR_MIN ||
+      y > yMax
+    ) {
+      setError(`请填写有效的出生年份（${BIRTH_YEAR_MIN}–${yMax}）`)
+      return
+    }
     if (resume && resume.size > RESUME_MAX_BYTES) {
       setError('简历超过 5MB 上限，请压缩后再上传。')
       return
@@ -108,7 +112,20 @@ export function ApplyPage() {
     setSubmitting(true)
     setError(null)
     try {
-      const result = await backend.apply.submit(token, form, resume)
+      const result = await backend.apply.submit(
+        token,
+        {
+          fullName: form.fullName.trim(),
+          wechatId: form.wechatId.trim(),
+          phone: form.phone.trim(),
+          birthYear: y,
+          aiUnderstanding: form.aiUnderstanding.trim() || undefined,
+          aiExperience: form.aiExperience.trim() || undefined,
+          pastProjects: form.pastProjects.trim() || undefined,
+          motivation: form.motivation.trim() || undefined,
+        },
+        resume,
+      )
       navigate(`/apply/${token}/done`, {
         replace: true,
         state: {
@@ -134,7 +151,7 @@ export function ApplyPage() {
         noValidate
         style={{ display: 'flex', flexDirection: 'column', gap: 28 }}
       >
-        <Section title="基本信息" desc="我们用来联系你">
+        <Section title="联系方式" desc="姓名、微信号与手机号为必填">
           <Row>
             <Field
               label="姓名 *"
@@ -144,63 +161,28 @@ export function ApplyPage() {
               autoFocus
             />
             <Field
-              label="邮箱"
-              type="email"
-              value={form.email}
-              onChange={(v) => set('email', v)}
-              placeholder="optional"
-            />
-          </Row>
-          <Row>
-            <Field
-              label="微信号"
+              label="微信号 *"
               value={form.wechatId}
               onChange={(v) => set('wechatId', v)}
-              placeholder="便于添加联系"
-            />
-            <Field
-              label="微信昵称"
-              value={form.wechatNickname}
-              onChange={(v) => set('wechatNickname', v)}
-              placeholder="方便我们认出你"
+              placeholder="用于添加联系"
+              required
             />
           </Row>
           <Row>
             <Field
-              label="手机号"
+              label="手机号 *"
+              type="tel"
               value={form.phone}
               onChange={(v) => set('phone', v)}
-              placeholder="optional"
-            />
-          </Row>
-        </Section>
-
-        <Section title="校园信息" desc="">
-          <Row>
-            <Field
-              label="学校"
-              value={form.university}
-              onChange={(v) => set('university', v)}
-              placeholder="例：清华大学"
+              required
             />
             <Field
-              label="专业"
-              value={form.major}
-              onChange={(v) => set('major', v)}
-              placeholder="例：计算机科学与技术"
-            />
-          </Row>
-          <Row>
-            <SelectField
-              label="年级"
-              value={form.gradeYear}
-              onChange={(v) =>
-                set('gradeYear', v as FutureGradeYear)
-              }
-              options={GRADE_YEAR_ORDER.map((g) => ({
-                value: g,
-                label: GRADE_YEAR_META[g],
-              }))}
+              label="出生年份 *"
+              type="number"
+              value={form.birthYear}
+              onChange={(v) => set('birthYear', v)}
+              placeholder={`例：2003（${BIRTH_YEAR_MIN}–${new Date().getFullYear()}）`}
+              required
             />
           </Row>
         </Section>
@@ -234,7 +216,7 @@ export function ApplyPage() {
             placeholder="尽量给：做了什么、扮演了什么角色、最后产出是什么。一条一段。"
           />
           <TextArea
-            label="你为什么想加入？（可选）"
+            label="你的一些个人目标（可选）"
             value={form.motivation}
             onChange={(v) => set('motivation', v)}
             rows={4}
@@ -481,39 +463,10 @@ function Field({
         required={required}
         autoFocus={autoFocus}
         placeholder={placeholder}
+        min={type === 'number' ? BIRTH_YEAR_MIN : undefined}
+        max={type === 'number' ? new Date().getFullYear() : undefined}
         style={inputStyle}
       />
-    </label>
-  )
-}
-
-function SelectField({
-  label,
-  value,
-  onChange,
-  options,
-}: {
-  label: string
-  value: string
-  onChange: (v: string) => void
-  options: { value: string; label: string }[]
-}) {
-  return (
-    <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 500 }}>
-        {label}
-      </span>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        style={inputStyle}
-      >
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
     </label>
   )
 }

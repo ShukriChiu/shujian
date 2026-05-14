@@ -155,7 +155,12 @@ function Header({
             color: 'var(--muted)',
           }}
         >
-          {[student.university, student.major, GRADE_YEAR_META[student.gradeYear]]
+          {[
+            student.birthYear != null ? `${student.birthYear} 年生` : null,
+            student.university,
+            student.major,
+            GRADE_YEAR_META[student.gradeYear],
+          ]
             .filter(Boolean)
             .join(' · ')}
         </p>
@@ -377,14 +382,15 @@ function IntakePanel({
 
       <FieldGrid>
         <Edit label="姓名" value={val('fullName')} onChange={(v) => set('fullName', v)} />
-        <Edit label="邮箱" value={val('email')} onChange={(v) => set('email', v)} />
         <Edit label="微信号" value={val('wechatId')} onChange={(v) => set('wechatId', v)} />
+        <Edit label="手机号" value={val('phone')} onChange={(v) => set('phone', v)} />
+        <EditBirthYear student={student} edit={edit} setEdit={setEdit} />
+        <Edit label="邮箱" value={val('email')} onChange={(v) => set('email', v)} />
         <Edit
           label="微信昵称"
           value={val('wechatNickname')}
           onChange={(v) => set('wechatNickname', v)}
         />
-        <Edit label="手机号" value={val('phone')} onChange={(v) => set('phone', v)} />
         <Edit
           label="学校"
           value={val('university')}
@@ -420,14 +426,12 @@ function IntakePanel({
         onChange={(v) => set('pastProjects', v)}
         rows={5}
       />
-      {(student.motivation || edit.motivation !== undefined) && (
-        <EditTextArea
-          label="加入动机"
-          value={val('motivation')}
-          onChange={(v) => set('motivation', v)}
-          rows={3}
-        />
-      )}
+      <EditTextArea
+        label="一些个人目标"
+        value={val('motivation')}
+        onChange={(v) => set('motivation', v)}
+        rows={3}
+      />
     </Card>
   )
 }
@@ -896,6 +900,54 @@ function NotesPanel({ studentId }: { studentId: string }) {
 }
 
 // ─── Reusable inputs ──────────────────────────────────────────────────
+
+function EditBirthYear({
+  student,
+  edit,
+  setEdit,
+}: {
+  student: FutureStudentDetail
+  edit: FutureUpdateStudent
+  setEdit: React.Dispatch<React.SetStateAction<FutureUpdateStudent>>
+}) {
+  const raw =
+    edit.birthYear !== undefined
+      ? String(edit.birthYear)
+      : student.birthYear != null
+        ? String(student.birthYear)
+        : ''
+
+  return (
+    <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+      <span style={{ fontSize: 11, color: 'var(--muted)' }}>出生年份</span>
+      <input
+        type="number"
+        value={raw}
+        onChange={(e) => {
+          const t = e.target.value.trim()
+          setEdit((prev) => {
+            const next = { ...prev }
+            if (!t) {
+              delete next.birthYear
+              return next
+            }
+            const n = Number.parseInt(t, 10)
+            if (!Number.isFinite(n)) return prev
+            if (n === (student.birthYear ?? Number.NaN)) {
+              delete next.birthYear
+            } else {
+              next.birthYear = n
+            }
+            return next
+          })
+        }}
+        min={1940}
+        max={new Date().getFullYear()}
+        style={inputStyle}
+      />
+    </label>
+  )
+}
 
 function FieldGrid({ children }: { children: React.ReactNode }) {
   return (

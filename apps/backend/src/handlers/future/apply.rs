@@ -10,6 +10,7 @@
 
 use axum::Json;
 use axum::extract::{Multipart, Path, State};
+use chrono::Datelike;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -28,8 +29,10 @@ const ALLOWED_RESUME_MIME: &[&str] = &[
 ];
 
 /// Request body for `POST /v1/future/apply/:token` (delivered as the
-/// `payload` multipart field in JSON form). Only `full_name` is
-/// strictly required — everything else is optional intake data.
+/// `payload` multipart field in JSON form).
+///
+/// Current public form: `full_name`, `wechat_id`, `phone`, and `birth_year`
+/// are required. Remaining fields are optional long-form answers.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ApplyPayload {
@@ -46,12 +49,10 @@ pub struct ApplyPayload {
     pub university: String,
     #[serde(default)]
     pub major: String,
-    /// One of: freshman | sophomore | junior | senior | master_1 |
-    /// master_2 | master_3 | phd | alumni | other. Anything else falls
-    /// back to "other" (we'd rather accept the row than lose a
-    /// student to a strict client-side validator drift).
+    /// Retained for older clients; the public form no longer collects this.
     #[serde(default = "default_grade_year")]
     pub grade_year: String,
+    pub birth_year: Option<i16>,
     #[serde(default)]
     pub ai_understanding: String,
     #[serde(default)]
@@ -195,6 +196,17 @@ pub async fn submit(
     if p.full_name.trim().is_empty() {
         return Err(AppError::bad_request("姓名是必填的"));
     }
+    if p.wechat_id.trim().is_empty() {
+        return Err(AppError::bad_request("微信号是必填的"));
+    }
+    if p.phone.trim().is_empty() {
+        return Err(AppError::bad_request("手机号是必填的"));
+    }
+    let birth_year = p.birth_year.ok_or_else(|| AppError::bad_request("出生年份是必填的"))?;
+    let y_now = chrono::Utc::now().year() as i16;
+    if birth_year < 1940 || birth_year > y_now {
+        return Err(AppError::bad_request("出生年份不在有效范围内"));
+    }
     let grade = normalize_grade_year(&p.grade_year);
 
     let student_id = Uuid::new_v4();
@@ -204,14 +216,14 @@ pub async fn submit(
         r#"
         INSERT INTO future_students (
             tenant_id, id, full_name, wechat_id, wechat_nickname,
-            email, phone, university, major, grade_year,
+            email, phone, university, major, grade_year, birth_year,
             ai_understanding, ai_experience, past_projects, motivation,
             has_resume, status
         ) VALUES (
             $1, $2, $3, $4, $5,
-            $6, $7, $8, $9, $10,
-            $11, $12, $13, $14,
-            $15, 'new'
+            $6, $7, $8, $9, $10, $11,
+            $12, $13, $14, $15,
+            $16, 'new'
         )
         "#,
     )
@@ -225,6 +237,7 @@ pub async fn submit(
     .bind(p.university.trim())
     .bind(p.major.trim())
     .bind(&grade)
+    .bind(birth_year)
     .bind(p.ai_understanding.trim())
     .bind(p.ai_experience.trim())
     .bind(p.past_projects.trim())

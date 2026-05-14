@@ -37,6 +37,7 @@ export function StudentListPage() {
         s.wechatNickname,
         s.university,
         s.major,
+        s.birthYear != null ? String(s.birthYear) : '',
         ...s.tags,
       ]
         .join(' ')
@@ -63,7 +64,7 @@ export function StudentListPage() {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="搜索 姓名 / 学校 / 标签…"
+            placeholder="搜索 姓名 / 出生年份 / 学校 / 标签…"
             style={{
               height: 34,
               padding: '0 12px',
@@ -283,14 +284,24 @@ function StudentCard({ s }: { s: FutureStudentSummary }) {
           gap: '0 6px',
         }}
       >
-        <span>{s.university || '—'}</span>
+        {s.birthYear != null && (
+          <span>{s.birthYear} 年生</span>
+        )}
+        {s.university && (
+          <>
+            {s.birthYear != null && (
+              <span style={{ color: 'var(--faint)' }}>·</span>
+            )}
+            <span>{s.university}</span>
+          </>
+        )}
         {s.major && (
           <>
             <span style={{ color: 'var(--faint)' }}>·</span>
             <span>{s.major}</span>
           </>
         )}
-        {s.gradeYear && (
+        {s.gradeYear && s.gradeYear !== 'other' && (
           <>
             <span style={{ color: 'var(--faint)' }}>·</span>
             <span>{GRADE_YEAR_META[s.gradeYear]}</span>

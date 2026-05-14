@@ -57,16 +57,13 @@ export interface FuturePublicTenantInfo {
 
 export interface FutureApplyPayload {
   fullName: string
-  wechatId?: string
-  wechatNickname?: string
-  email?: string
-  phone?: string
-  university?: string
-  major?: string
-  gradeYear?: FutureGradeYear
+  wechatId: string
+  phone: string
+  birthYear: number
   aiUnderstanding?: string
   aiExperience?: string
   pastProjects?: string
+  /** 问卷文案为「一些个人目标」；仍映射到服务端 motivation 字段 */
   motivation?: string
 }
 
@@ -79,6 +76,8 @@ export interface FutureApplyResult {
 export interface FutureStudentSummary {
   id: string
   fullName: string
+  /** 出生年份（公历），新表单必填；历史数据可能为空 */
+  birthYear: number | null
   wechatNickname: string
   university: string
   major: string
@@ -115,6 +114,7 @@ export interface FutureUpdateStudent {
   wechatNickname?: string
   email?: string
   phone?: string
+  birthYear?: number
   university?: string
   major?: string
   gradeYear?: FutureGradeYear

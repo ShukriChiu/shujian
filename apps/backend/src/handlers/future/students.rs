@@ -5,7 +5,7 @@ use axum::body::Body;
 use axum::extract::{Path, Query, State};
 use axum::http::{HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Datelike, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -20,6 +20,7 @@ use super::require_tenant;
 pub struct StudentSummary {
     pub id: Uuid,
     pub full_name: String,
+    pub birth_year: Option<i16>,
     pub wechat_nickname: String,
     pub university: String,
     pub major: String,
@@ -40,6 +41,7 @@ pub struct StudentDetail {
     pub wechat_nickname: String,
     pub email: String,
     pub phone: String,
+    pub birth_year: Option<i16>,
     pub university: String,
     pub major: String,
     pub grade_year: String,
@@ -62,7 +64,7 @@ pub struct ListQuery {
     /// Omitted → all non-archived rows.
     pub status: Option<String>,
     /// Free-text search over name / wechat_nickname / wechat_id /
-    /// university / major / email. Case-insensitive contains.
+    /// university / major / email / phone. Case-insensitive contains.
     pub q: Option<String>,
 }
 
@@ -86,7 +88,7 @@ pub async fn list(
 
     let rows = sqlx::query_as::<_, StudentSummary>(
         r#"
-        SELECT id, full_name, wechat_nickname, university, major, grade_year,
+        SELECT id, full_name, birth_year, wechat_nickname, university, major, grade_year,
                status, tags, has_resume, submitted_at, updated_at
         FROM future_students
         WHERE tenant_id = $1
@@ -98,7 +100,8 @@ pub async fn list(
                 OR wechat_id        ILIKE '%' || $3 || '%'
                 OR university       ILIKE '%' || $3 || '%'
                 OR major            ILIKE '%' || $3 || '%'
-                OR email            ILIKE '%' || $3 || '%' )
+                OR email            ILIKE '%' || $3 || '%'
+                OR phone            ILIKE '%' || $3 || '%' )
         ORDER BY submitted_at DESC, id
         "#,
     )
@@ -121,7 +124,7 @@ pub async fn get(
 
     let row = sqlx::query_as::<_, StudentDetail>(
         r#"
-        SELECT id, full_name, wechat_id, wechat_nickname, email, phone,
+        SELECT id, full_name, wechat_id, wechat_nickname, email, phone, birth_year,
                university, major, grade_year, ai_understanding, ai_experience,
                past_projects, motivation, status, admin_notes, tags,
                has_resume, submitted_at, updated_at, reviewed_at
@@ -149,6 +152,7 @@ pub struct UpdateStudent {
     pub wechat_nickname: Option<String>,
     pub email: Option<String>,
     pub phone: Option<String>,
+    pub birth_year: Option<i16>,
     pub university: Option<String>,
     pub major: Option<String>,
     pub grade_year: Option<String>,
@@ -183,6 +187,12 @@ pub async fn update(
     {
         return Err(AppError::bad_request(format!("invalid gradeYear: {g}")));
     }
+    if let Some(y) = body.birth_year {
+        let y_now = chrono::Utc::now().year() as i16;
+        if y < 1940 || y > y_now {
+            return Err(AppError::bad_request("invalid birthYear"));
+        }
+    }
 
     let user_id = auth.user.id;
     sqlx::query(
@@ -193,25 +203,26 @@ pub async fn update(
             wechat_nickname  = COALESCE($5,  wechat_nickname),
             email            = COALESCE($6,  email),
             phone            = COALESCE($7,  phone),
-            university       = COALESCE($8,  university),
-            major            = COALESCE($9,  major),
-            grade_year       = COALESCE($10, grade_year),
-            ai_understanding = COALESCE($11, ai_understanding),
-            ai_experience    = COALESCE($12, ai_experience),
-            past_projects    = COALESCE($13, past_projects),
-            motivation       = COALESCE($14, motivation),
-            status           = COALESCE($15, status),
-            admin_notes      = COALESCE($16, admin_notes),
-            tags             = COALESCE($17, tags),
+            birth_year       = COALESCE($8,  birth_year),
+            university       = COALESCE($9,  university),
+            major            = COALESCE($10, major),
+            grade_year       = COALESCE($11, grade_year),
+            ai_understanding = COALESCE($12, ai_understanding),
+            ai_experience    = COALESCE($13, ai_experience),
+            past_projects    = COALESCE($14, past_projects),
+            motivation       = COALESCE($15, motivation),
+            status           = COALESCE($16, status),
+            admin_notes      = COALESCE($17, admin_notes),
+            tags             = COALESCE($18, tags),
             updated_at       = now(),
             reviewed_at      = CASE
-                                  WHEN reviewed_at IS NULL AND $15 IS NOT NULL AND $15 <> 'new'
+                                  WHEN reviewed_at IS NULL AND $16 IS NOT NULL AND $16 <> 'new'
                                   THEN now()
                                   ELSE reviewed_at
                                END,
             reviewed_by_user_id = CASE
-                                  WHEN reviewed_by_user_id IS NULL AND $15 IS NOT NULL AND $15 <> 'new'
-                                  THEN $18
+                                  WHEN reviewed_by_user_id IS NULL AND $16 IS NOT NULL AND $16 <> 'new'
+                                  THEN $19
                                   ELSE reviewed_by_user_id
                                END
         WHERE tenant_id = $1 AND id = $2
@@ -224,6 +235,7 @@ pub async fn update(
     .bind(body.wechat_nickname.as_deref().map(str::trim))
     .bind(body.email.as_deref().map(str::trim))
     .bind(body.phone.as_deref().map(str::trim))
+    .bind(body.birth_year)
     .bind(body.university.as_deref().map(str::trim))
     .bind(body.major.as_deref().map(str::trim))
     .bind(body.grade_year.as_deref())
