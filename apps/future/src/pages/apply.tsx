@@ -340,17 +340,6 @@ export function ApplyPage() {
         >
           {submitting ? '提交中…' : '提交申请'}
         </button>
-
-        <p
-          style={{
-            fontSize: 11,
-            color: 'var(--faint)',
-            textAlign: 'center',
-            margin: 0,
-          }}
-        >
-          提交后管理员会审阅，一般会通过微信主动联系你。
-        </p>
       </form>
     </ApplyShell>
   )
