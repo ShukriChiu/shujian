@@ -53,7 +53,7 @@ impl Config {
         let seed_admin_password =
             env::var("SEED_ADMIN_PASSWORD").unwrap_or_else(|_| "admin".into());
 
-        let cors_allow_origins = env::var("CORS_ALLOW_ORIGINS")
+        let mut cors_allow_origins = env::var("CORS_ALLOW_ORIGINS")
             .map(|s| {
                 s.split(',')
                     .map(|p| p.trim().to_string())
@@ -67,6 +67,17 @@ impl Config {
                     "https://shujian-dashboard.pages.dev".into(),
                 ]
             });
+        // Keep critical public frontend origins available even when
+        // CORS_ALLOW_ORIGINS is partially configured in production.
+        for required in [
+            "https://shujian-dashboard.pages.dev",
+            "https://shujian-future.pages.dev",
+            "https://future.shujian.art",
+        ] {
+            if !cors_allow_origins.iter().any(|origin| origin == required) {
+                cors_allow_origins.push(required.to_string());
+            }
+        }
 
         let onion_api_base = env::var("ONION_API_BASE")
             .ok()
