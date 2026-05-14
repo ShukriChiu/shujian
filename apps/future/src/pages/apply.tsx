@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { backend } from '../lib/backend'
@@ -13,6 +13,11 @@ const RESUME_ACCEPT =
   '.pdf,.doc,.docx,.png,.jpg,.jpeg,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/png,image/jpeg'
 
 const BIRTH_YEAR_MIN = 1940
+/** 输入类控件最小高度（触控友好） */
+const CONTROL_MIN_TAP = 44
+const NARROW_BREAKPOINT = '(max-width: 767px)'
+
+type ApplySectionId = 'contact' | 'campus' | 'ai' | 'projects' | 'resume'
 
 interface FormState {
   fullName: string
@@ -46,6 +51,7 @@ const EMPTY: FormState = {
  * Public student application form.
  */
 export function ApplyPage() {
+  const narrow = useNarrowApplyLayout()
   const { token = '' } = useParams<{ token: string }>()
   const navigate = useNavigate()
   const info = useQuery({
@@ -60,13 +66,22 @@ export function ApplyPage() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+  const [expandedSections, setExpandedSections] = useState<
+    Record<ApplySectionId, boolean>
+  >({
+    contact: true,
+    campus: false,
+    ai: false,
+    projects: false,
+    resume: false,
+  })
 
   if (info.isLoading) {
-    return <ApplyShell title="加载中…" subtitle="" />
+    return <ApplyShell title="加载中…" subtitle="" narrow={narrow} />
   }
   if (info.isError) {
     return (
-      <ApplyShell title="链接已失效" subtitle="">
+      <ApplyShell title="链接已失效" subtitle="" narrow={narrow}>
         <p style={{ fontSize: 14, color: 'var(--muted)', margin: 0 }}>
           这个招募链接不存在，或者已经被关闭。请联系工作区管理员获取新的链接。
         </p>
@@ -79,6 +94,7 @@ export function ApplyPage() {
       <ApplyShell
         title={`${tenant.tenantName} · 招募已暂停`}
         subtitle={tenant.label}
+        narrow={narrow}
       >
         <p style={{ fontSize: 14, color: 'var(--muted)', margin: 0 }}>
           这一期的招募已经关闭。请联系管理员了解下一期开放时间。
@@ -155,17 +171,45 @@ export function ApplyPage() {
     }
   }
 
+  function toggleSection(id: ApplySectionId) {
+    setExpandedSections((s) => ({ ...s, [id]: !s[id] }))
+  }
+
   return (
     <ApplyShell
       title={`${tenant.tenantName} · 招募申请`}
       subtitle={tenant.label}
+      narrow={narrow}
     >
       <form
         onSubmit={onSubmit}
         noValidate
-        style={{ display: 'flex', flexDirection: 'column', gap: 28 }}
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: narrow ? 16 : 28,
+        }}
       >
-        <Section title="联系方式" desc="姓名、微信号与手机号为必填">
+        {narrow && (
+          <p
+            style={{
+              margin: 0,
+              fontSize: 12,
+              color: 'var(--muted)',
+              lineHeight: 1.5,
+            }}
+          >
+            手机填写可点开各段标题展开；带 * 为必填。可随时上下滑动修改已填内容。
+          </p>
+        )}
+        <SectionWrap
+          mode={narrow ? 'collapsible' : 'static'}
+          id="contact"
+          title="联系方式"
+          desc="姓名、微信号与手机号为必填"
+          expanded={expandedSections.contact}
+          onToggle={() => toggleSection('contact')}
+        >
           <Row>
             <Field
               label="姓名 *"
@@ -199,9 +243,16 @@ export function ApplyPage() {
               required
             />
           </Row>
-        </Section>
+        </SectionWrap>
 
-        <Section title="校园信息" desc="">
+        <SectionWrap
+          mode={narrow ? 'collapsible' : 'static'}
+          id="campus"
+          title="校园信息"
+          desc="学校、专业、年级（选填亦可留空）"
+          expanded={expandedSections.campus}
+          onToggle={() => toggleSection('campus')}
+        >
           <Row>
             <Field
               label="学校"
@@ -229,11 +280,15 @@ export function ApplyPage() {
               }))}
             />
           </Row>
-        </Section>
+        </SectionWrap>
 
-        <Section
+        <SectionWrap
+          mode={narrow ? 'collapsible' : 'static'}
+          id="ai"
           title="对 AI 的理解和运用"
           desc="重点 — 越具体越好，例子比抽象描述更有说服力"
+          expanded={expandedSections.ai}
+          onToggle={() => toggleSection('ai')}
         >
           <TextArea
             label="你怎么看 AI？以及你打算怎么用 AI？"
@@ -249,9 +304,16 @@ export function ApplyPage() {
             rows={5}
             placeholder="例：用 Claude 写过一个量化交易脚本；用 Cursor 做过 X；做过 prompt engineering 的 Y……"
           />
-        </Section>
+        </SectionWrap>
 
-        <Section title="项目经历" desc="任何作品、产品、研究、组织都算">
+        <SectionWrap
+          mode={narrow ? 'collapsible' : 'static'}
+          id="projects"
+          title="项目经历"
+          desc="任何作品、产品、研究、组织都算"
+          expanded={expandedSections.projects}
+          onToggle={() => toggleSection('projects')}
+        >
           <TextArea
             label="过往项目经历"
             value={form.pastProjects}
@@ -266,9 +328,16 @@ export function ApplyPage() {
             rows={4}
             placeholder="optional"
           />
-        </Section>
+        </SectionWrap>
 
-        <Section title="简历（可选）" desc="PDF / Word / 图片，5MB 以内">
+        <SectionWrap
+          mode={narrow ? 'collapsible' : 'static'}
+          id="resume"
+          title="简历（可选）"
+          desc="PDF / Word / 图片，5MB 以内"
+          expanded={expandedSections.resume}
+          onToggle={() => toggleSection('resume')}
+        >
           <input
             ref={fileRef}
             type="file"
@@ -280,6 +349,7 @@ export function ApplyPage() {
             style={{
               display: 'flex',
               alignItems: 'center',
+              flexWrap: 'wrap',
               gap: 12,
               padding: 14,
               background: 'var(--leaf)',
@@ -291,8 +361,9 @@ export function ApplyPage() {
               type="button"
               onClick={() => fileRef.current?.click()}
               style={{
-                padding: '8px 14px',
-                fontSize: 13,
+                minHeight: CONTROL_MIN_TAP,
+                padding: '10px 16px',
+                fontSize: 14,
                 color: 'var(--ink)',
                 background: 'var(--paper)',
                 border: '1px solid var(--hairline-strong)',
@@ -324,16 +395,17 @@ export function ApplyPage() {
                   if (fileRef.current) fileRef.current.value = ''
                 }}
                 style={{
-                  fontSize: 12,
+                  fontSize: 13,
                   color: 'var(--muted)',
-                  padding: '4px 8px',
+                  minHeight: CONTROL_MIN_TAP,
+                  padding: '8px 12px',
                 }}
               >
                 移除
               </button>
             )}
           </div>
-        </Section>
+        </SectionWrap>
 
         {error && (
           <div
@@ -355,13 +427,15 @@ export function ApplyPage() {
           type="submit"
           disabled={submitting}
           style={{
-            height: 44,
-            fontSize: 14,
+            minHeight: narrow ? 48 : CONTROL_MIN_TAP,
+            fontSize: narrow ? 15 : 14,
             color: 'var(--paper)',
             background: 'var(--ink)',
             borderRadius: 'var(--radius)',
             letterSpacing: '0.04em',
             opacity: submitting ? 0.55 : 1,
+            padding: narrow ? '12px 16px' : undefined,
+            marginTop: narrow ? 4 : undefined,
           }}
         >
           {submitting ? '提交中…' : '提交申请'}
@@ -371,20 +445,36 @@ export function ApplyPage() {
   )
 }
 
+function useNarrowApplyLayout(): boolean {
+  const [narrow, setNarrow] = useState(false)
+  useEffect(() => {
+    const mq = window.matchMedia(NARROW_BREAKPOINT)
+    const sync = () => setNarrow(mq.matches)
+    sync()
+    mq.addEventListener('change', sync)
+    return () => mq.removeEventListener('change', sync)
+  }, [])
+  return narrow
+}
+
 function ApplyShell({
   title,
   subtitle,
+  narrow,
   children,
 }: {
   title: string
   subtitle?: string
+  narrow?: boolean
   children?: React.ReactNode
 }) {
   return (
     <div
       style={{
         minHeight: '100svh',
-        padding: '40px 16px 80px',
+        padding: narrow
+          ? 'max(16px, env(safe-area-inset-top)) 16px max(72px, calc(16px + env(safe-area-inset-bottom)))'
+          : '40px 16px 80px',
         display: 'flex',
         justifyContent: 'center',
       }}
@@ -396,10 +486,10 @@ function ApplyShell({
           border: '1px solid var(--hairline)',
           borderRadius: 'var(--radius-lg)',
           boxShadow: 'var(--paper-shadow)',
-          padding: '40px 28px',
+          padding: narrow ? '24px 18px 28px' : '40px 28px',
           display: 'flex',
           flexDirection: 'column',
-          gap: 28,
+          gap: narrow ? 20 : 28,
         }}
       >
         <header style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -408,7 +498,7 @@ function ApplyShell({
             className="serif"
             style={{
               margin: 0,
-              fontSize: 26,
+              fontSize: narrow ? 22 : 26,
               lineHeight: 1.25,
               letterSpacing: '-0.012em',
               color: 'var(--ink)',
@@ -425,6 +515,156 @@ function ApplyShell({
         {children}
       </div>
     </div>
+  )
+}
+
+type SectionMode = 'static' | 'collapsible'
+
+function StaticSection({
+  title,
+  desc,
+  children,
+}: {
+  id: ApplySectionId
+  title: string
+  desc?: string
+  children: React.ReactNode
+}) {
+  return <Section title={title} desc={desc}>{children}</Section>
+}
+
+function CollapsibleSection({
+  id,
+  title,
+  desc,
+  expanded,
+  onToggle,
+  children,
+}: {
+  id: ApplySectionId
+  title: string
+  desc?: string
+  expanded: boolean
+  onToggle: () => void
+  children: React.ReactNode
+}) {
+  const panelId = `apply-section-${id}`
+  return (
+    <section
+      style={{
+        border: '1px solid var(--hairline)',
+        borderRadius: 'var(--radius)',
+        background: 'var(--paper-deep)',
+        overflow: 'hidden',
+      }}
+    >
+      <button
+        type="button"
+        id={`${panelId}-trigger`}
+        aria-expanded={expanded}
+        aria-controls={panelId}
+        onClick={onToggle}
+        style={{
+          width: '100%',
+          display: 'flex',
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
+          gap: 12,
+          padding: '14px 16px',
+          minHeight: CONTROL_MIN_TAP,
+          textAlign: 'left',
+          background: expanded ? 'var(--leaf-soft)' : 'var(--leaf)',
+          border: 0,
+          borderBottom: expanded ? '1px solid var(--hairline-soft)' : 'none',
+          cursor: 'pointer',
+        }}
+      >
+        <span style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
+          <span
+            className="serif"
+            style={{
+              fontSize: 16,
+              color: 'var(--ink)',
+              letterSpacing: '0.01em',
+            }}
+          >
+            {title}
+          </span>
+          {desc && (
+            <span
+              style={{
+                fontSize: 12,
+                color: 'var(--muted)',
+                lineHeight: 1.45,
+              }}
+            >
+              {desc}
+            </span>
+          )}
+        </span>
+        <span
+          aria-hidden
+          style={{
+            flexShrink: 0,
+            fontSize: 12,
+            color: 'var(--faint)',
+            marginTop: 4,
+            transform: expanded ? 'rotate(90deg)' : 'none',
+            transition: 'transform 160ms var(--ease-out-quart)',
+          }}
+        >
+          ›
+        </span>
+      </button>
+      {expanded && (
+        <div
+          id={panelId}
+          role="region"
+          aria-labelledby={`${panelId}-trigger`}
+          style={{
+            padding: '16px 16px 18px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 14,
+          }}
+        >
+          {children}
+        </div>
+      )}
+    </section>
+  )
+}
+
+function SectionWrap(props: {
+  mode: SectionMode
+  id: ApplySectionId
+  title: string
+  desc?: string
+  expanded: boolean
+  onToggle: () => void
+  children: React.ReactNode
+}) {
+  if (props.mode === 'static') {
+    return (
+      <StaticSection
+        id={props.id}
+        title={props.title}
+        desc={props.desc}
+      >
+        {props.children}
+      </StaticSection>
+    )
+  }
+  return (
+    <CollapsibleSection
+      id={props.id}
+      title={props.title}
+      desc={props.desc}
+      expanded={props.expanded}
+      onToggle={props.onToggle}
+    >
+      {props.children}
+    </CollapsibleSection>
   )
 }
 
@@ -571,13 +811,13 @@ function TextArea({
         placeholder={placeholder}
         style={{
           ...inputStyle,
+          minHeight: Math.max(CONTROL_MIN_TAP * 2, rows * 26),
           height: 'auto',
-          padding: '10px 12px',
+          padding: '12px 14px',
           fontFamily: 'var(--font-sans)',
-          fontSize: 14,
+          fontSize: 16,
           lineHeight: 1.55,
           resize: 'vertical',
-          minHeight: rows * 22,
         }}
       />
     </label>
@@ -585,14 +825,15 @@ function TextArea({
 }
 
 const inputStyle: React.CSSProperties = {
-  height: 38,
+  minHeight: CONTROL_MIN_TAP,
   width: '100%',
   borderRadius: 'var(--radius-sm)',
   border: '1px solid var(--hairline)',
   background: 'var(--paper)',
-  padding: '0 12px',
-  fontSize: 14,
+  padding: '0 14px',
+  fontSize: 16,
   color: 'var(--ink)',
   outline: 'none',
   transition: 'border-color 160ms var(--ease-out-quart)',
+  lineHeight: 1.35,
 }
