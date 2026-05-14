@@ -60,6 +60,9 @@ export interface FutureApplyPayload {
   wechatId: string
   phone: string
   birthYear: number
+  university?: string
+  major?: string
+  gradeYear?: FutureGradeYear
   aiUnderstanding?: string
   aiExperience?: string
   pastProjects?: string

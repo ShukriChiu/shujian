@@ -2,6 +2,11 @@ import { useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { backend } from '../lib/backend'
+import {
+  GRADE_YEAR_META,
+  GRADE_YEAR_ORDER,
+  type FutureGradeYear,
+} from '../lib/types'
 
 const RESUME_MAX_BYTES = 5 * 1024 * 1024
 const RESUME_ACCEPT =
@@ -14,6 +19,9 @@ interface FormState {
   wechatId: string
   phone: string
   birthYear: string
+  university: string
+  major: string
+  gradeYear: FutureGradeYear
   aiUnderstanding: string
   aiExperience: string
   pastProjects: string
@@ -25,6 +33,9 @@ const EMPTY: FormState = {
   wechatId: '',
   phone: '',
   birthYear: '',
+  university: '',
+  major: '',
+  gradeYear: 'junior',
   aiUnderstanding: '',
   aiExperience: '',
   pastProjects: '',
@@ -119,6 +130,9 @@ export function ApplyPage() {
           wechatId: form.wechatId.trim(),
           phone: form.phone.trim(),
           birthYear: y,
+          university: form.university.trim() || undefined,
+          major: form.major.trim() || undefined,
+          gradeYear: form.gradeYear,
           aiUnderstanding: form.aiUnderstanding.trim() || undefined,
           aiExperience: form.aiExperience.trim() || undefined,
           pastProjects: form.pastProjects.trim() || undefined,
@@ -183,6 +197,36 @@ export function ApplyPage() {
               onChange={(v) => set('birthYear', v)}
               placeholder={`例：2003（${BIRTH_YEAR_MIN}–${new Date().getFullYear()}）`}
               required
+            />
+          </Row>
+        </Section>
+
+        <Section title="校园信息" desc="">
+          <Row>
+            <Field
+              label="学校"
+              value={form.university}
+              onChange={(v) => set('university', v)}
+              placeholder="例：清华大学"
+            />
+            <Field
+              label="专业"
+              value={form.major}
+              onChange={(v) => set('major', v)}
+              placeholder="例：计算机科学与技术"
+            />
+          </Row>
+          <Row>
+            <SelectField
+              label="年级"
+              value={form.gradeYear}
+              onChange={(v) =>
+                set('gradeYear', v as FutureGradeYear)
+              }
+              options={GRADE_YEAR_ORDER.map((g) => ({
+                value: g,
+                label: GRADE_YEAR_META[g],
+              }))}
             />
           </Row>
         </Section>
@@ -467,6 +511,37 @@ function Field({
         max={type === 'number' ? new Date().getFullYear() : undefined}
         style={inputStyle}
       />
+    </label>
+  )
+}
+
+function SelectField({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string
+  value: string
+  onChange: (v: string) => void
+  options: { value: string; label: string }[]
+}) {
+  return (
+    <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 500 }}>
+        {label}
+      </span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        style={inputStyle}
+      >
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
     </label>
   )
 }
