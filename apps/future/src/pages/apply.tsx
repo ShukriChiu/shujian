@@ -177,9 +177,10 @@ export function ApplyPage() {
 
   return (
     <ApplyShell
-      title={`${tenant.tenantName} · 招募申请`}
+      title={`${tenant.tenantName} · FDE 实习`}
       subtitle={tenant.label}
       narrow={narrow}
+      intro={<ApplyIntro narrow={narrow} />}
     >
       <form
         onSubmit={onSubmit}
@@ -285,48 +286,48 @@ export function ApplyPage() {
         <SectionWrap
           mode={narrow ? 'collapsible' : 'static'}
           id="ai"
-          title="对 AI 的理解和运用"
-          desc="重点 — 越具体越好，例子比抽象描述更有说服力"
+          title="FDE 相关理解"
+          desc="重点写你如何用 AI 解决真实问题"
           expanded={expandedSections.ai}
           onToggle={() => toggleSection('ai')}
         >
           <TextArea
-            label="你怎么看 AI？以及你打算怎么用 AI？"
+            label="你如何理解 FDE 这类工作？"
             value={form.aiUnderstanding}
             onChange={(v) => set('aiUnderstanding', v)}
             rows={5}
-            placeholder="可以写：你对 AI 的核心判断、对未来的预判、它给你的具体启发……"
+            placeholder="可以写：你怎么看企业里的真实问题，怎样判断模型能不能帮上忙，怎样从需求做到原型。"
           />
           <TextArea
             label="你过去用 AI 做过什么具体的事？"
             value={form.aiExperience}
             onChange={(v) => set('aiExperience', v)}
             rows={5}
-            placeholder="例：用 Claude 写过一个量化交易脚本；用 Cursor 做过 X；做过 prompt engineering 的 Y……"
+            placeholder="写具体产出：脚本、工具、自动化、调研、课程项目，或任何你亲手做出来的东西。"
           />
         </SectionWrap>
 
         <SectionWrap
           mode={narrow ? 'collapsible' : 'static'}
           id="projects"
-          title="项目经历"
-          desc="任何作品、产品、研究、组织都算"
+          title="项目与动机"
+          desc="看推进真实问题的能力，不只看技术栈"
           expanded={expandedSections.projects}
           onToggle={() => toggleSection('projects')}
         >
           <TextArea
-            label="过往项目经历"
+            label="你做过哪些完整项目或真实问题？"
             value={form.pastProjects}
             onChange={(v) => set('pastProjects', v)}
             rows={6}
             placeholder="尽量给：做了什么、扮演了什么角色、最后产出是什么。一条一段。"
           />
           <TextArea
-            label="你的一些个人目标（可选）"
+            label="为什么想训练成 FDE？（可选）"
             value={form.motivation}
             onChange={(v) => set('motivation', v)}
             rows={4}
-            placeholder="optional"
+            placeholder="你想进入什么业务场景，想补哪类能力，以及能投入多少时间。"
           />
         </SectionWrap>
 
@@ -460,11 +461,13 @@ function useNarrowApplyLayout(): boolean {
 function ApplyShell({
   title,
   subtitle,
+  intro,
   narrow,
   children,
 }: {
   title: string
   subtitle?: string
+  intro?: React.ReactNode
   narrow?: boolean
   children?: React.ReactNode
 }) {
@@ -511,8 +514,62 @@ function ApplyShell({
               {subtitle}
             </p>
           )}
+          {intro}
         </header>
         {children}
+      </div>
+    </div>
+  )
+}
+
+function ApplyIntro({ narrow }: { narrow?: boolean }) {
+  return (
+    <div
+      style={{
+        marginTop: narrow ? 8 : 10,
+        padding: narrow ? '12px 12px 14px' : '14px 16px',
+        border: '1px solid var(--hairline)',
+        borderRadius: 'var(--radius)',
+        background: 'var(--paper-deep)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 10,
+      }}
+    >
+      <p
+        style={{
+          margin: 0,
+          color: 'var(--ink-soft)',
+          fontSize: narrow ? 14 : 15,
+          lineHeight: 1.7,
+        }}
+      >
+        Forward Deployed Engineer 在不同行业企业的真实环境下承接业务上下文、交付软件，并用 AI 持续提升企业内部经营效率。
+      </p>
+      <div
+        aria-label="培养方向"
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 6,
+        }}
+      >
+        {['懂业务问题', '会做原型', '能交付结果'].map((item) => (
+          <span
+            key={item}
+            style={{
+              padding: '4px 8px',
+              border: '1px solid var(--hairline-soft)',
+              borderRadius: '999px',
+              color: 'var(--muted)',
+              background: 'var(--leaf)',
+              fontSize: 12,
+              lineHeight: 1.2,
+            }}
+          >
+            {item}
+          </span>
+        ))}
       </div>
     </div>
   )
