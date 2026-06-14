@@ -17,9 +17,9 @@ export default defineConfig({
         target: 'http://localhost:8002',
         changeOrigin: true,
       },
-      // cursor-bridge (Node + @cursor/sdk)
+      // cursor-bridge (Node + @cursor/sdk). Port must match apps/bridge/.env PORT.
       '/cursor': {
-        target: 'http://localhost:8003',
+        target: process.env.BRIDGE_DEV_TARGET ?? 'http://localhost:8013',
         changeOrigin: true,
         rewrite: (p) => p.replace(/^\/cursor/, ''),
       },

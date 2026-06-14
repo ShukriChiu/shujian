@@ -1,0 +1,48 @@
+{
+  "skill_name": "shujian-health",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "我昨晚睡得怎么样？跟过去一周比呢",
+      "expected_output": "用 today 命令拿最近数据；如果同步时间超过 6 小时先跑 sync；念出 sleep_score、总睡眠时长、深睡/REM，然后和过去 7 天均值对比（偏高/偏低）；给一句解读而不是只报数字。",
+      "assertions": [
+        {"text": "使用了 shujian-health skill 的 oura.py today 或等价 SQL 查询 health.oura_daily"},
+        {"text": "回答中包含具体 Sleep Score 数字 + 总睡眠时长"},
+        {"text": "和过去 7 天做了对比（提到均值/趋势/基线）"},
+        {"text": "给了一句解读或建议，不是纯数字清单"}
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "最近 HRV 有没有降？我感觉这周有点累",
+      "expected_output": "用 trend --days 14 或直接查 oura_daily 看 hrv_avg 趋势；把最近 3-7 天的 HRV 和再往前 7 天均值做对比；结合 RHR 是否升高；判断是否确实处于过度消耗；给是否需要休息的判断。",
+      "assertions": [
+        {"text": "拉了 14 天或以上的 HRV 时间序列"},
+        {"text": "做了前后对比（近 N 天 vs 基线）而不是只给一个数"},
+        {"text": "把 HRV 和 RHR 结合起来看（两者呈反向关系时是过度消耗信号）"},
+        {"text": "给出是否应该休息/减量的明确判断"}
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "今天能不能去跑个长距离？身体扛得住吗",
+      "expected_output": "查 readiness_score 和今天的 HRV/RHR vs 最近基线；readiness<70 建议保守，<60 建议休息；同时看体温偏离（>0.3°C 警示发烧/炎症）和 resilience_level；综合给出能/不能 + 强度建议。",
+      "assertions": [
+        {"text": "查询了当日 readiness_score"},
+        {"text": "考虑了体温偏离（temperature_deviation）"},
+        {"text": "给了明确的能/不能建议 + 强度提示"},
+        {"text": "没有在缺数据时瞎猜（数据缺失时说明并建议先 sync）"}
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "帮我把过去 30 天的 Oura 数据同步一下",
+      "expected_output": "运行 python scripts/oura.py sync --days 30；输出各 resource 的条数；如果有报错说明哪个 resource 失败；建议后续可以看 trend --days 30。",
+      "assertions": [
+        {"text": "执行了 oura.py sync --days 30 或等价命令"},
+        {"text": "报告了实际同步的天数/条数"},
+        {"text": "覆盖了至少 daily_sleep/sleep/daily_readiness/daily_activity 四个核心 resource"}
+      ]
+    }
+  ]
+}

@@ -65,14 +65,20 @@ function toLocalUnified(a: AgentDto, running: boolean): UnifiedAgent {
 }
 
 function toCursorUnified(a: CursorAgent): UnifiedAgent {
+  const runtime = a.runtime ?? 'local'
+  const displayName = a.name?.trim() || a.agentId
   return {
     id: makeId('cursor', a.agentId),
     kind: 'cursor',
-    name: a.agentId,
+    name: displayName,
     description: null,
     model: a.model?.id ?? 'unknown',
-    provider: 'cursor',
+    provider: runtime === 'local' ? 'cursor local' : 'cursor cloud',
     status: 'idle',
+    cursorRuntime: runtime,
+    cwd: a.cwd,
+    repoUrl: a.repoUrl,
+    workspace: runtime === 'local' ? a.cwd : a.repoUrl,
     raw: a,
   }
 }

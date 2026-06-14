@@ -1,0 +1,10 @@
+# Copy to ~/.cloudflared/config.yml after running scripts/tunnel-named-setup.sh
+# or fill in manually after: cloudflared tunnel create shujian-bridge
+#
+# tunnel: <uuid-from-cloudflared-tunnel-list>
+# credentials-file: /Users/you/.cloudflared/<uuid>.json
+#
+# ingress:
+#   - hostname: bridge.yourdomain.com
+#     service: http://127.0.0.1:8003
+#   - service: http_status:404

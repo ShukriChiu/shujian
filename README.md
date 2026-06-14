@@ -9,6 +9,7 @@ Monorepo for the Shujian agent stack: a Rust runtime daemon, a Cursor SDK bridge
 | [`apps/agent`](apps/agent) | Rust (axum, tokio, cron) | Local daemon runtime for digital employees. Exposes HTTP, runs scheduled tasks, drives Cursor agents via the bridge. |
 | [`apps/bridge`](apps/bridge) | TypeScript (Bun, Hono) + `@cursor/sdk` | HTTP/SSE bridge so any host (Rust agent, dashboard, cloud agent) can drive Cursor agents. |
 | [`apps/backend`](apps/backend) | Rust (Axum, sqlx, Postgres) | Multi-tenant control plane: identity, tenants, sessions. See [`docs/backend-architecture.md`](docs/backend-architecture.md). |
+| [`apps/health`](apps/health) | Python (FastAPI, uv) | Oura + CGM sync, health storyline analysis. Shares Railway Postgres `health` schema with backend. |
 | [`apps/dashboard`](apps/dashboard) | React 19 + Vite + Tailwind + TanStack | Web control panel for `apps/agent` and Cursor agents (via the bridge). |
 
 ## Packages
@@ -27,6 +28,7 @@ just install
 just dev-agent
 just dev-bridge
 just dev-backend     # needs DATABASE_URL; see apps/backend/.env.example
+just dev-health      # needs DATABASE_URL + OURA_PAT; see apps/health/.env.example
 just dev-dashboard
 
 # checks before pushing

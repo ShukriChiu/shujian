@@ -15,8 +15,9 @@ import {
   X,
 } from 'lucide-react'
 import { PersonaLaunchWizard } from './wizard/PersonaLaunchWizard'
+import { LocalCursorLaunchWizard } from './wizard/LocalCursorLaunchWizard'
 import { AgentEditor } from './AgentEditor'
-import { agentApi, cursorApi, type AgentDto } from '@/lib/api'
+import { agentApi, cursorApi, type AgentDto, type CursorAgent } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { PageHeader } from '@/components/PageHeader'
 import { EmptyState } from '@/components/EmptyState'
@@ -24,6 +25,7 @@ import { useUnifiedAgents } from './useUnifiedAgents'
 import { makeId, parseId, type AgentKind, type UnifiedAgent } from './types'
 
 type Filter = 'all' | 'local' | 'cursor' | 'running'
+type NewWizard = 'cloud' | 'cursor-local'
 
 const FILTERS: Array<{ id: Filter; label: string; getCount: (c: ReturnType<typeof useUnifiedAgents>['counts']) => number }> = [
   { id: 'all', label: 'All', getCount: (c) => c.total },
@@ -51,6 +53,7 @@ export function AgentsView() {
   const navigate = useNavigate()
   const selectedId = params.get('id')
   const newOpen = params.get('new') === '1'
+  const newWizard = (params.get('wizard') as NewWizard | null) ?? 'cloud'
   const [filter, setFilter] = useState<Filter>('all')
   const [q, setQ] = useState('')
 
@@ -84,10 +87,10 @@ export function AgentsView() {
     })
   }
 
-  function openNew(kind: AgentKind = 'cursor') {
+  function openNew(wizard: NewWizard = 'cloud') {
     const next = new URLSearchParams(params)
     next.set('new', '1')
-    next.set('kind', kind)
+    next.set('wizard', wizard)
     next.delete('id')
     setParams(next, { replace: true })
   }
@@ -95,8 +98,26 @@ export function AgentsView() {
   function closeNew() {
     const next = new URLSearchParams(params)
     next.delete('new')
-    next.delete('kind')
+    next.delete('wizard')
     setParams(next, { replace: true })
+  }
+
+  function handleCursorCreated(
+    id: string,
+    ctx: { personaSlug?: string; toWorkspace: boolean },
+  ) {
+    closeNew()
+    if (ctx.toWorkspace) {
+      const parsed = parseId(id)
+      if (parsed) {
+        const qs = new URLSearchParams()
+        qs.set('agent', parsed.name)
+        if (ctx.personaSlug) qs.set('persona', ctx.personaSlug)
+        navigate(`/workspace?${qs.toString()}`)
+        return
+      }
+    }
+    selectId(id)
   }
 
   return (
@@ -114,10 +135,16 @@ export function AgentsView() {
           </>
         }
         actions={
-          <button onClick={() => openNew('cursor')} className="btn btn-primary">
-            <Plus className="h-4 w-4" />
-            新建 Cloud Agent
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={() => openNew('cursor-local')} className="btn">
+              <Cpu className="h-4 w-4" />
+              新建 Local Cursor Agent
+            </button>
+            <button onClick={() => openNew('cloud')} className="btn btn-primary">
+              <Plus className="h-4 w-4" />
+              新建 Cloud Agent
+            </button>
+          </div>
         }
       />
 
@@ -136,31 +163,26 @@ export function AgentsView() {
           isLoading={data.isLoading}
           selectedId={selectedId}
           onSelect={selectId}
-          onOpenNew={() => openNew('cursor')}
+          onOpenNew={() => openNew('cloud')}
+          onOpenNewLocal={() => openNew('cursor-local')}
         />
         {(selected || newOpen) && (
           <aside
-            className="hidden border-l border-line bg-surface xl:flex xl:min-h-0 xl:flex-col"
+            className="flex min-h-0 flex-col border-t border-line bg-surface xl:max-h-none xl:border-l xl:border-t-0 max-xl:max-h-[min(60vh,640px)]"
             style={{ viewTransitionName: 'agent-rail' } as React.CSSProperties}
           >
             {newOpen ? (
-              <PersonaLaunchWizard
-                onClose={closeNew}
-                onCreated={(id, ctx) => {
-                  closeNew()
-                  if (ctx.toWorkspace) {
-                    const parsed = parseId(id)
-                    if (parsed) {
-                      const qs = new URLSearchParams()
-                      qs.set('agent', parsed.name)
-                      if (ctx.personaSlug) qs.set('persona', ctx.personaSlug)
-                      navigate(`/workspace?${qs.toString()}`)
-                      return
-                    }
-                  }
-                  selectId(id)
-                }}
-              />
+              newWizard === 'cursor-local' ? (
+                <LocalCursorLaunchWizard
+                  onClose={closeNew}
+                  onCreated={(id, ctx) => handleCursorCreated(id, ctx)}
+                />
+              ) : (
+                <PersonaLaunchWizard
+                  onClose={closeNew}
+                  onCreated={(id, ctx) => handleCursorCreated(id, ctx)}
+                />
+              )
             ) : selected ? (
               <AgentRail
                 agent={selected}
@@ -243,12 +265,14 @@ function AgentList({
   selectedId,
   onSelect,
   onOpenNew,
+  onOpenNewLocal,
 }: {
   items: UnifiedAgent[]
   isLoading: boolean
   selectedId: string | null
   onSelect: (id: string) => void
   onOpenNew: () => void
+  onOpenNewLocal: () => void
 }) {
   if (isLoading) {
     return (
@@ -272,16 +296,20 @@ function AgentList({
           title="还没有 agent"
           hint={
             <>
-              本地 agent 来自 <span className="text-ink-muted">.cursor/agents/*.md</span>{' '}
-              + <span className="text-ink-muted">config.toml</span>，
-              <br />
-              云端 agent 由 cursor-bridge 在 Cursor cloud 里 spawn。
+              Rust 本地 agent 来自 <span className="text-ink-muted">config.toml</span>；
+              Cursor local agent 在 bridge 机器目录跑；
+              Cloud agent 在 Cursor sandbox 跑。
             </>
           }
           action={
-            <button onClick={onOpenNew} className="btn btn-primary">
-              <Plus className="h-4 w-4" /> 新建 Cloud Agent
-            </button>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <button onClick={onOpenNewLocal} className="btn">
+                <Cpu className="h-4 w-4" /> 新建 Local Cursor Agent
+              </button>
+              <button onClick={onOpenNew} className="btn btn-primary">
+                <Plus className="h-4 w-4" /> 新建 Cloud Agent
+              </button>
+            </div>
           }
         />
       </div>
@@ -364,13 +392,18 @@ function Row({
         )}
       </span>
       <span className="flex items-center">
-        <KindPill kind={item.kind} />
+        <KindPill agent={item} />
       </span>
       <span className="flex items-center gap-1.5 truncate font-mono text-xs text-ink-muted">
         <span className="truncate">{item.model}</span>
       </span>
       <span className="truncate font-mono text-xs text-ink-dim">
-        {item.workspace ?? (item.kind === 'cursor' ? 'cursor cloud' : '—')}
+        {item.workspace ??
+          (item.kind === 'cursor'
+            ? item.cursorRuntime === 'local'
+              ? 'cursor local'
+              : 'cursor cloud'
+            : '—')}
       </span>
       <span className="text-right font-mono text-xs text-ink-dim">
         {item.toolsCount ?? '—'}
@@ -379,12 +412,20 @@ function Row({
   )
 }
 
-function KindPill({ kind }: { kind: AgentKind }) {
-  if (kind === 'local') {
+function KindPill({ agent }: { agent: UnifiedAgent }) {
+  if (agent.kind === 'local') {
     return (
       <span className="pill pill-muted">
         <Cpu className="h-3 w-3" />
-        local
+        rust
+      </span>
+    )
+  }
+  if (agent.cursorRuntime === 'local') {
+    return (
+      <span className="pill pill-muted">
+        <Cpu className="h-3 w-3" />
+        cursor local
       </span>
     )
   }
@@ -565,16 +606,19 @@ function CursorRail({ agent, onAgentReplaced }: { agent: UnifiedAgent; onAgentRe
   const qc = useQueryClient()
   const navigate = useNavigate()
   const [editing, setEditing] = useState(false)
+  const raw = agent.raw as CursorAgent
+  const agentId = raw.agentId
+  const isLocal = agent.cursorRuntime === 'local'
 
   const dispose = useMutation({
-    mutationFn: () => cursorApi.dispose(agent.name),
+    mutationFn: () => cursorApi.dispose(agentId),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['cursor', 'list'] }),
   })
 
-  if (editing) {
+  if (editing && !isLocal) {
     return (
       <AgentEditor
-        agentId={agent.name}
+        agentId={agentId}
         onClose={() => setEditing(false)}
         onRespawned={(newId) => {
           setEditing(false)
@@ -586,7 +630,7 @@ function CursorRail({ agent, onAgentReplaced }: { agent: UnifiedAgent; onAgentRe
 
   function openInWorkspace() {
     const qs = new URLSearchParams()
-    qs.set('agent', agent.name)
+    qs.set('agent', agentId)
     navigate(`/workspace?${qs.toString()}`)
   }
 
@@ -596,10 +640,15 @@ function CursorRail({ agent, onAgentReplaced }: { agent: UnifiedAgent; onAgentRe
         <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-ink-dim">
           Configuration
         </div>
-        <KV label="agent id" value={agent.name} mono />
+        <KV label="agent id" value={agentId} mono />
+        {agent.name !== agentId && <KV label="name" value={agent.name} mono />}
         <KV label="model" value={agent.model} mono />
-        {agent.repoUrl && <KV label="repo" value={agent.repoUrl} mono />}
-        <KV label="provider" value="cursor cloud · 只读" mono />
+        {isLocal ? (
+          <KV label="cwd" value={agent.cwd} mono />
+        ) : (
+          agent.repoUrl && <KV label="repo" value={agent.repoUrl} mono />
+        )}
+        <KV label="provider" value={isLocal ? 'cursor local · bridge 机器' : 'cursor cloud · 只读'} mono />
       </section>
 
       <section className="space-y-2 border-b border-line p-5">
@@ -614,14 +663,16 @@ function CursorRail({ agent, onAgentReplaced }: { agent: UnifiedAgent; onAgentRe
           打开聊天 (workspace)
           <ArrowRight className="h-3.5 w-3.5" />
         </button>
-        <button
-          type="button"
-          onClick={() => setEditing(true)}
-          className="btn w-full justify-center"
-        >
-          <Pencil className="h-3.5 w-3.5" />
-          编辑 repo / vault / 模型
-        </button>
+        {!isLocal && (
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            className="btn w-full justify-center"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+            编辑 repo / vault / 模型
+          </button>
+        )}
         <button
           type="button"
           onClick={() => dispose.mutate()}
@@ -634,11 +685,23 @@ function CursorRail({ agent, onAgentReplaced }: { agent: UnifiedAgent; onAgentRe
       </section>
 
       <section className="p-5 text-[11.5px] leading-[1.6] text-ink-muted">
-        Cloud agent 的对话已迁移到{' '}
-        <button onClick={openInWorkspace} className="text-accent underline-offset-2 hover:underline">
-          /workspace
-        </button>
-        ，跟工具产物面板 / persona capability 面板放在一起。这里只保留配置 + 编辑入口。
+        {isLocal ? (
+          <>
+            Local agent 在你 bridge 机器的 cwd 里跑。对话在{' '}
+            <button onClick={openInWorkspace} className="text-accent underline-offset-2 hover:underline">
+              /workspace
+            </button>
+            。
+          </>
+        ) : (
+          <>
+            Cloud agent 的对话已迁移到{' '}
+            <button onClick={openInWorkspace} className="text-accent underline-offset-2 hover:underline">
+              /workspace
+            </button>
+            ，跟工具产物面板 / persona capability 面板放在一起。这里只保留配置 + 编辑入口。
+          </>
+        )}
       </section>
     </div>
   )

@@ -145,6 +145,10 @@ export interface CursorModel {
 export interface CursorAgent {
   agentId: string
   model?: { id: string }
+  runtime?: 'local' | 'cloud'
+  name?: string
+  cwd?: string
+  repoUrl?: string
 }
 
 /** Returned by `GET /agents/:id/meta` and embedded in create/update responses.
@@ -228,6 +232,7 @@ export interface CursorHealth {
   uptime?: number
   activeAgents?: number
   activeRuns?: number
+  defaults?: { model?: string; cwd?: string }
 }
 
 export const cursorApi = {

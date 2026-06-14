@@ -18,6 +18,9 @@ export interface UnifiedAgent {
   status: AgentStatus
   workspace?: string
   repoUrl?: string
+  /** Cursor SDK runtime when `kind === 'cursor'`. */
+  cursorRuntime?: 'local' | 'cloud'
+  cwd?: string
   toolsCount?: number
   raw: unknown
 }

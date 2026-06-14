@@ -444,10 +444,17 @@ app.get('/skills', async (c) => {
 })
 
 app.get('/agents', (c) => {
-  const items = Array.from(agents.entries()).map(([id, a]) => ({
-    agentId: id,
-    model: a.model,
-  }))
+  const items = Array.from(agents.entries()).map(([id, a]) => {
+    const meta = agentMeta.get(id)
+    return {
+      agentId: id,
+      model: a.model,
+      runtime: meta?.runtime ?? 'local',
+      name: meta?.name,
+      cwd: meta?.cwd,
+      repoUrl: meta?.repoUrl,
+    }
+  })
   return c.json({ items })
 })
 
@@ -745,11 +752,26 @@ const HOSTNAME = process.env.HOSTNAME_BIND ?? (process.env.RAILWAY_ENVIRONMENT_N
 console.log(`[cursor-bridge] listening on http://${HOSTNAME}:${PORT}`)
 console.log(`[cursor-bridge] default model = ${DEFAULT_MODEL}`)
 console.log(`[cursor-bridge] default cwd   = ${DEFAULT_CWD}`)
+console.log(
+  `[cursor-bridge] runtime = ${typeof Bun !== 'undefined' ? 'bun (local Cursor agents may hit NGHTTP2 errors — use npm run start)' : 'node'}`,
+)
 
-export default {
-  port: PORT,
-  hostname: HOSTNAME,
-  // SSE streams + long agent runs need much more than Bun's 10s default
-  idleTimeout: 255,
-  fetch: app.fetch,
+process.on('unhandledRejection', (reason) => {
+  console.error('[cursor-bridge] unhandledRejection (bridge stays up):', reason)
+})
+
+async function startServer() {
+  if (typeof Bun !== 'undefined') {
+    Bun.serve({
+      port: PORT,
+      hostname: HOSTNAME,
+      fetch: app.fetch,
+      idleTimeout: 255,
+    })
+    return
+  }
+  const { serve } = await import('@hono/node-server')
+  serve({ fetch: app.fetch, port: PORT, hostname: HOSTNAME })
 }
+
+startServer()

@@ -13,13 +13,16 @@
     "url": "https://github.com/ShukriChiu/shujian-agent-bridge.git"
   },
   "scripts": {
-    "dev": "bun --watch src/server.ts",
-    "start": "bun src/server.ts",
+    "dev": "node --experimental-strip-types --env-file=.env --watch src/server.ts",
+    "dev:bun": "bun --watch src/server.ts",
+    "start": "node --experimental-strip-types --env-file=.env src/server.ts",
+    "start:bun": "bun src/server.ts",
     "typecheck": "tsc --noEmit",
     "test:cloud": "bun scripts/test-cloud-multi.ts"
   },
   "dependencies": {
     "@cursor/sdk": "^1.0.12",
+    "@hono/node-server": "^2.0.4",
     "hono": "^4.7.0"
   },
   "devDependencies": {

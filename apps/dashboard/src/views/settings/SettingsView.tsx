@@ -223,7 +223,7 @@ function SystemSection() {
           <p className="text-sm text-bad">offline · cd shujian-agent/cursor-bridge && bun run dev</p>
         ) : (
           <dl className="space-y-1 font-mono text-xs">
-            <Row k="proxy" v="/cursor → :8003 (vite)" />
+            <Row k="proxy" v="/cursor → bridge (vite, see BRIDGE_DEV_TARGET)" />
             {meta.data && <Row k="active agents" v={String(meta.data.activeAgents)} />}
             {meta.data && <Row k="active runs" v={String(meta.data.activeRuns)} />}
             {me.data && <Row k="api key" v={me.data.apiKeyName} />}

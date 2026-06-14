@@ -1,0 +1,5 @@
+[deploy]
+startCommand = "health serve"
+healthcheckPath = "/healthz"
+healthcheckTimeout = 30
+restartPolicyType = "on_failure"
