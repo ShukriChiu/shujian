@@ -13,6 +13,9 @@ MIGRATION_FILES = (
     "002_health_oura_webhook.sql",
     "003_health_cgm.sql",
     "004_health_tenants.sql",
+    "005_health_cgm_readings.sql",
+    "006_health_sino_oauth_config.sql",
+    "007_health_patients.sql",
 )
 
 

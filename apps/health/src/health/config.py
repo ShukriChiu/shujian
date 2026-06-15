@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     host: str = "0.0.0.0"
     sync_cron_hour: int = 1
     enable_scheduler: bool = True
+    request_timeout_s: float = 30.0
 
     @property
     def migrations_dir(self) -> Path:

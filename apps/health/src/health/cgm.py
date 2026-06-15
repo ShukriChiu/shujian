@@ -9,13 +9,13 @@ import sys
 import urllib.parse
 import urllib.request
 import urllib.error
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional
 
-from psycopg2.extras import Json  # type: ignore
+from psycopg2.extras import Json, execute_values  # type: ignore
 
 from health.config import get_settings
-from health.db import db_exec, db_query
+from health.db import db_conn, db_exec, db_query
 from health.tenants import list_tenants, resolve_owner, resolve_sino_user_id, seed_default_tenant
 from health.token_provider import get_token_provider
 
@@ -39,7 +39,7 @@ def _get_auth_header() -> Dict[str, str]:
         print(f"❌ SINO OAuth 失败: {e}", file=sys.stderr)
         print("   配置 SINO_CLIENT_ID/SECRET + ICAN_USERNAME/PASSWORD", file=sys.stderr)
         sys.exit(2)
-    return {"Authorization": f"Bearer {token}"}
+    return {"sino-auth": token}
 
 
 # ───────── HTTP helpers ─────────
@@ -86,6 +86,40 @@ def _unwrap(path: str, body: Any) -> Any:
     return body
 
 
+# ───────── 手机号 → 三诺 userId ─────────
+
+def find_user_by_phone(phone: str) -> Optional[Dict[str, Any]]:
+    """用手机号在三诺查用户，返回 {id, name, phone(masked)} 或 None。
+
+    逻辑对齐 sino-agentservice：page-user 模糊搜索后按掩码手机号精确匹配。
+    """
+    phone = (phone or "").strip()
+    if not phone:
+        return None
+    page = _api_post(
+        "/api/sino-user/v1/user/page-user",
+        {"keyWord": phone, "current": 1, "size": 10},
+    )
+    records = (page or {}).get("records") or []
+    masked = phone[:3] + "****" + phone[-4:] if len(phone) == 11 else None
+    if masked:
+        for rec in records:
+            if rec.get("phone") == masked:
+                return rec
+    if len(records) == 1:
+        return records[0]
+    return None
+
+
+def sync_patient(sino_user_id: str, days: int = 14,
+                 start: Optional[str] = None, end: Optional[str] = None) -> None:
+    """按 patient 的 sino_user_id 同步 CGM（owner = sino_user_id）。"""
+    args = argparse.Namespace(
+        days=days, start=start, end=end, owner=sino_user_id, all_tenants=False,
+    )
+    _sync_one_owner(sino_user_id, sino_user_id, args)
+
+
 # ───────── CGM metrics computation ─────────
 
 def _extract_glucose(point: Dict[str, Any]) -> Optional[float]:
@@ -109,6 +143,27 @@ def _extract_hour(point: Dict[str, Any]) -> Optional[int]:
         return int(time_part.split(":")[0])
     except (IndexError, ValueError):
         return None
+
+
+def _extract_ts(point: Dict[str, Any], day_str: str) -> Optional[datetime]:
+    """从采样点解析完整时间戳（用于分钟级 cgm_readings）。"""
+    dt_str = (point.get("dataTime") or point.get("time") or "").strip()
+    if not dt_str:
+        return None
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"):
+        try:
+            return datetime.strptime(dt_str, fmt)
+        except ValueError:
+            continue
+    # 退化：仅有 "HH:MM:SS" 时拼上归属日
+    time_part = dt_str.split(" ")[-1]
+    for fmt in ("%H:%M:%S", "%H:%M"):
+        try:
+            t = datetime.strptime(time_part, fmt).time()
+            return datetime.combine(date.fromisoformat(day_str), t)
+        except ValueError:
+            continue
+    return None
 
 
 def compute_daily_metrics(points: List[Dict[str, Any]], api_day: Dict[str, Any]) -> Dict[str, Any]:
@@ -262,6 +317,7 @@ def _sync_one_owner(owner: str, sino_user_id: str, args: argparse.Namespace) -> 
     print(f"   找到 {len(target_dates)} 天: {target_dates[0]} → {target_dates[-1]}")
 
     upserted = 0
+    readings_total = 0
     for i in range(0, len(target_dates), 7):
         chunk = target_dates[i:i + 7]
         days_data = _api_post(
@@ -284,11 +340,13 @@ def _sync_one_owner(owner: str, sino_user_id: str, args: argparse.Namespace) -> 
                 continue
 
             _upsert_day(owner, day_str, metrics, day_data)
+            n_read = _upsert_readings(owner, day_str, points)
+            readings_total += n_read
             upserted += 1
             pts = metrics.get("data_points", 0)
             tir_val = metrics.get("tir", 0)
             mean_val = metrics.get("mean_glucose", 0)
-            print(f"   ✓ {day_str}: {pts} pts, TIR={tir_val}%, mean={mean_val} mmol/L")
+            print(f"   ✓ {day_str}: {pts} pts ({n_read} readings), TIR={tir_val}%, mean={mean_val} mmol/L")
 
     db_exec(
         """
@@ -302,7 +360,7 @@ def _sync_one_owner(owner: str, sino_user_id: str, args: argparse.Namespace) -> 
         """,
         (owner, sino_user_id, end),
     )
-    print(f"✅ [{owner}] 同步完成: {upserted} 天")
+    print(f"✅ [{owner}] 同步完成: {upserted} 天, {readings_total} 条分钟级读数")
 
 
 def _upsert_day(owner: str, day_str: str, metrics: Dict[str, Any], raw: Dict[str, Any]) -> None:
@@ -343,6 +401,35 @@ def _upsert_day(owner: str, day_str: str, metrics: Dict[str, Any], raw: Dict[str
             Json({k: v for k, v in raw.items() if k != "pointList"}),
         ),
     )
+
+
+def _upsert_readings(owner: str, day_str: str, points: List[Dict[str, Any]]) -> int:
+    """写入分钟级原始读数（cgm_readings）。返回写入条数。"""
+    rows: List[tuple] = []
+    seen: set[datetime] = set()
+    for p in points:
+        g = _extract_glucose(p)
+        if g is None or g <= 0:
+            continue
+        ts = _extract_ts(p, day_str)
+        if ts is None or ts in seen:
+            continue
+        seen.add(ts)
+        rows.append((owner, ts, g, day_str))
+    if not rows:
+        return 0
+    with db_conn() as conn, conn.cursor() as cur:
+        execute_values(
+            cur,
+            """
+            INSERT INTO health.cgm_readings (owner, ts, glucose, day)
+            VALUES %s
+            ON CONFLICT (owner, ts) DO UPDATE SET
+                glucose = EXCLUDED.glucose, day = EXCLUDED.day
+            """,
+            rows,
+        )
+    return len(rows)
 
 
 def cmd_today(args: argparse.Namespace) -> None:

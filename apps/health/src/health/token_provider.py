@@ -16,6 +16,7 @@ from typing import Any
 import httpx
 
 from health.config import Settings, get_settings
+from health.sino_config import OAuthCredentials, effective_credentials
 
 log = logging.getLogger(__name__)
 
@@ -23,11 +24,12 @@ AUTH_PATH = "/api/sino-auth/oauth/token"
 OAUTH_ROW_ID = "default"
 
 
-def build_basic_auth_header(settings: Settings) -> str:
-    if settings.sino_client_basic:
-        return settings.sino_client_basic.strip()
-    cid = settings.sino_client_id
-    secret = settings.sino_client_secret
+def build_basic_auth_header(settings: Settings | None = None, creds: OAuthCredentials | None = None) -> str:
+    c = creds or effective_credentials(settings)
+    if c.sino_client_basic:
+        return c.sino_client_basic.strip()
+    cid = c.sino_client_id
+    secret = c.sino_client_secret
     if not cid or not secret:
         raise ValueError(
             "OAuth requires SINO_CLIENT_BASIC or SINO_CLIENT_ID + SINO_CLIENT_SECRET"
@@ -83,10 +85,19 @@ class SinoTokenProvider:
 
     def __init__(self, settings: Settings | None = None):
         self.settings = settings or get_settings()
+        self._creds = effective_credentials(self.settings)
         self._lock = threading.Lock()
         self._cache: TokenCache | None = None
         self._static_exp: datetime | None = None
         self._mode: str = "unset"
+
+    def reload_credentials(self) -> None:
+        """配置变更后重新加载凭证并清空内存缓存。"""
+        with self._lock:
+            self._creds = effective_credentials(self.settings)
+            self._cache = None
+            self._static_exp = None
+            self._mode = "unset"
 
     def _cache_file_path(self) -> Path:
         p = self.settings.sino_token_cache_path
@@ -193,10 +204,11 @@ class SinoTokenProvider:
         return self._load_disk()
 
     def _post_oauth(self, params: dict[str, str]) -> dict[str, Any]:
-        auth = build_basic_auth_header(self.settings)
+        auth = build_basic_auth_header(self.settings, self._creds)
         with httpx.Client(
             base_url=self.settings.ican_base_url,
             timeout=self.settings.request_timeout_s,
+            trust_env=False,
         ) as http:
             r = http.post(AUTH_PATH, headers={"Authorization": auth}, params=params)
         if r.status_code >= 400:
@@ -227,8 +239,9 @@ class SinoTokenProvider:
         return str(access), str(refresh), expires_at
 
     def _login_password(self) -> TokenCache:
-        user = _normalize_username(self.settings.ican_username)
-        pwd_b64 = base64.b64encode(self.settings.ican_password.encode()).decode("ascii")
+        user = _normalize_username(self._creds.ican_username or self.settings.ican_username)
+        pwd = self._creds.ican_password or self.settings.ican_password
+        pwd_b64 = base64.b64encode(pwd.encode()).decode("ascii")
         body = self._post_oauth(
             {
                 "tenant_id": "000000",
@@ -276,14 +289,30 @@ class SinoTokenProvider:
         return cache
 
     def _oauth_configured(self) -> bool:
-        has_basic = bool(self.settings.sino_client_basic) or (
-            bool(self.settings.sino_client_id) and bool(self.settings.sino_client_secret)
+        return self._creds.oauth_ready()
+
+    def _has_client_basic(self) -> bool:
+        return bool(self._creds.sino_client_basic) or (
+            bool(self._creds.sino_client_id) and bool(self._creds.sino_client_secret)
         )
-        has_creds = bool(self.settings.ican_username) and bool(self.settings.ican_password)
-        return has_basic and has_creds
+
+    def _static_token_valid(self) -> bool:
+        tok = (self.settings.ican_token or self.settings.sino_access_token or "").strip()
+        if not tok:
+            return False
+        exp = _jwt_exp_utc(tok)
+        if exp is None:
+            return True
+        return datetime.now(timezone.utc) < exp
 
     def _ensure_fresh_unlocked(self) -> None:
         margin = timedelta(seconds=self.settings.sino_refresh_margin_seconds)
+
+        if self._static_token_valid():
+            self._mode = "static"
+            tok = self.settings.ican_token or self.settings.sino_access_token
+            self._static_exp = _jwt_exp_utc(tok) if tok else None
+            return
 
         if self._oauth_configured():
             self._mode = "oauth"
@@ -310,9 +339,7 @@ class SinoTokenProvider:
             self._cache = self._login_password()
             return
 
-        has_basic = bool(self.settings.sino_client_basic) or (
-            bool(self.settings.sino_client_id) and bool(self.settings.sino_client_secret)
-        )
+        has_basic = self._has_client_basic()
         if has_basic:
             if self._cache is None:
                 self._cache = self._load_cache()
@@ -361,11 +388,15 @@ class SinoTokenProvider:
             exp = self._cache.expires_at
         elif self._static_exp:
             exp = self._static_exp.isoformat()
+        from health.sino_config import config_status
+
         return {
             "mode": self._mode,
             "expires_at": exp,
             "username": self._cache.username if self._cache else None,
+            "real_name": self._cache.real_name if self._cache else None,
             "cache": "postgres" if self.settings.database_url else "file",
+            "config": config_status(self.settings),
         }
 
 
